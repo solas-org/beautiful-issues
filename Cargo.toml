@@ -1,0 +1,10 @@
+[package]
+name = "beautiful-issues"
+version = "0.1.0"
+edition = "2024"
+description = "Beautiful issues let you debug with ease and share problems with team or developers."
+
+[dependencies]
+serde = { version = "1.0.229", features = ["derive"] }
+clap = { version = "4.6.6", features = ["derive"] }
+url = "2.5.8"
