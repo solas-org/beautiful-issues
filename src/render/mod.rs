@@ -1,1 +1,1 @@
-﻿pub mod terminal;
+﻿pub(crate) mod terminal;

@@ -1,2 +1,3 @@
-﻿pub mod ticket;
-pub mod crash;
+﻿pub(crate) mod ticket;
+pub(crate) mod crash;
+pub(crate) mod issue;

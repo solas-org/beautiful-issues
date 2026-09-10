@@ -8,3 +8,4 @@ description = "Beautiful issues let you debug with ease and share problems with 
 serde = { version = "1.0.229", features = ["derive"] }
 clap = { version = "4.6.6", features = ["derive"] }
 url = "2.5.8"
+toml = "1.1.5+spec-1.1.0"

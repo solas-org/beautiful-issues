@@ -18,17 +18,40 @@ pub(crate) enum Commands {
         crash_file: Option<PathBuf>,
     },
 
-    ///Commands applied to managing crashes
-    Crash{
+    ///Issues are custom errors, warnings or suggestions for helping users understand the problem
+    Issue{
         #[command(subcommand)]
-        crash_subcommand: CrashSubcommands
+        subcommand: IssueSubcommands
     },
 
-    ///Commands applied to managing tickets
+    ///Crashes are auto-generated files that record program issues
+    Crash{
+        #[command(subcommand)]
+        subcommand: CrashSubcommands
+    },
+
+    ///Tickets are user-generated reports of crashes and other problems
     Ticket{
         #[command(subcommand)]
-        ticket_subcommand: TicketSubcommand
+        subcommand: TicketSubcommand
     }
+}
+
+#[derive(Subcommand)]
+pub(crate) enum IssueSubcommands{
+    ///Interactively creates new issue
+    New{
+        ///Output file path
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
+    ///Prints all issues
+    List,
+    ///Deletes issues
+    Del{
+        #[command(subcommand)]
+        target: Option<DelTarget>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -52,23 +75,18 @@ pub(crate) enum CrashSubcommands{
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
-    ///Prints all local crashes
-    List{
-        ///Project root path
-        #[arg(default_value_os_t = std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))]
-        path: PathBuf,
-    },
-    ///Deletes all local crashes
-    Clear{
-        ///Project root path
-        #[arg(default_value_os_t = std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))]
-        path: PathBuf,
+    ///Prints all crashes
+    List,
+    ///Deletes crashes
+    Del{
+        #[command(subcommand)]
+        target: Option<DelTarget>,
     },
 }
 
 #[derive(Subcommand)]
 pub(crate) enum TicketSubcommand{
-    ///Creates new ticket
+    ///Interactively creates new ticket
     New{
         ///Crash file that ticket will be based on
         crash_file: Option<PathBuf>,
@@ -78,25 +96,32 @@ pub(crate) enum TicketSubcommand{
     },
     ///Pushes ticket to error's dev remote or to custom remote
     Push{
-        ///Push choice
         #[command(subcommand)]
         target: Option<PushTarget>,
         ///Custom remote url (overrides dev's one)
         #[arg(short, long)]
         remote: Option<Url>,
     },
-    ///Prints all local tickets
-    List{
-        ///Project root path
-        #[arg(default_value_os_t = std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))]
-        path: PathBuf,
+    ///Prints all tickets
+    List,
+    ///Deletes tickets
+    Del{
+        #[command(subcommand)]
+        target: Option<DelTarget>,
     },
-    ///Deletes all local tickets
-    Clear{
-        ///Project root path
-        #[arg(default_value_os_t = std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))]
-        path: PathBuf,
+}
+
+#[derive(Subcommand, Clone)]
+pub(crate) enum DelTarget{
+    ///Delete last [default]
+    Last,
+    ///Delete single from specified path
+    Single {
+        #[arg(value_parser)]
+        path: PathBuf
     },
+    ///Delete all
+    All,
 }
 
 #[derive(Subcommand, Clone)]

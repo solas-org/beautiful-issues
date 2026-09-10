@@ -1,7 +1,7 @@
 ﻿use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
-pub struct Ticket {
+pub(crate) struct Ticket {
     name: String,
     description: String,
     category: String,
