@@ -2,7 +2,7 @@
 name = "beautiful-issues"
 version = "0.1.0"
 edition = "2024"
-description = "Beautiful issues let you debug with ease and share problems with team or developers."
+description = "beautiful-issues let you debug and report problems with ease."
 
 [dependencies]
 serde = { version = "1.0.229", features = ["derive"] }
