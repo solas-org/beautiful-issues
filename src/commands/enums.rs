@@ -1,7 +1,9 @@
-﻿use std::path::PathBuf;
-use clap::{Subcommand};
+﻿use crate::models::crash::CrashSpan;
+use clap::{Subcommand, ValueEnum};
+use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
+use derive_more::Display;
 use url::Url;
-use crate::models::crash::CrashSpan;
 
 #[derive(Subcommand)]
 pub(crate) enum Commands {
@@ -10,6 +12,8 @@ pub(crate) enum Commands {
         ///Project root path
         #[arg(default_value_os_t = std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))]
         path: PathBuf,
+        ///Target frameworks
+        frameworks: Vec<Framework>,
     },
 
     ///Inspect crash on specified path or the last one
@@ -35,6 +39,12 @@ pub(crate) enum Commands {
         #[command(subcommand)]
         subcommand: TicketSubcommand
     }
+}
+
+#[derive(ValueEnum, Clone, Serialize, Deserialize, Display)]
+pub(crate) enum Framework{
+    Dotnet,
+    Rust
 }
 
 #[derive(Subcommand)]
@@ -71,6 +81,9 @@ pub(crate) enum CrashSubcommands{
         ///Original invocation trace of error
         #[arg(short, long)]
         trace: Option<Vec<String>>,
+        ///Target framework
+        #[arg(short, long)]
+        framework: Option<String>,
         ///Output file path
         #[arg(short, long)]
         output: Option<PathBuf>,

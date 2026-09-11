@@ -1,10 +1,11 @@
 ﻿use std::fs::{create_dir, exists, File};
 use std::io::Write;
 use std::path::PathBuf;
+use crate::commands::enums::Framework;
 use crate::config::{DevConfig, UserConfig};
 use crate::lock::Lock;
 
-pub(crate) fn init(project_path: &PathBuf) {
+pub(crate) fn init(project_path: &PathBuf, frameworks: &Vec<Framework>) {
     let dir = project_path.join(".bissue");
 
     let create_folder = |name: &str|{
@@ -48,9 +49,8 @@ pub(crate) fn init(project_path: &PathBuf) {
     }
 
     {
-        let lock = Lock {
-            pushed: Vec::new()
-        };
+        let mut lock = Lock::default();
+        lock.frameworks = frameworks.clone();
 
         let file_content = toml::to_string(&lock).expect("Cannot serialize lock file");
         create_file("bissue.lock", file_content.as_bytes());

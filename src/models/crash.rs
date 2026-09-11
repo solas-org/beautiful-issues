@@ -1,14 +1,37 @@
-﻿use std::str::FromStr;
+﻿use std::fs::File;
+use std::io::Write;
+use std::path::PathBuf;
+use std::str::FromStr;
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
+use crate::lock::Lock;
 
 #[derive(Serialize, Deserialize)]
 pub(crate) struct Crash {
-    error_code: String,
-    path: String,
-    span: CrashSpan,
-    message: String,
-    invocation_trace: Vec<String>,
-    context: CrashContext
+    pub(crate) error_code: String,
+    pub(crate) file_path: PathBuf,
+    pub(crate) span: CrashSpan,
+    pub(crate) message: String,
+    pub(crate) invocation_trace: Vec<String>,
+    pub(crate) context: CrashContext
+}
+
+impl Crash {
+    pub(crate) fn save(&self, output: Option<PathBuf>) {
+        let generated_name = Utc::now().format("%Y-%m-%d_%H-%M-%S");
+        let path = output.unwrap_or_else(||
+            PathBuf::from(format!("./.bissue/crashes/{}_{}.crash", &self.error_code, generated_name)));
+
+        let file_content = serde_json::to_string_pretty(&self).expect("Cannot serialize crash file");
+
+        let mut file = File::create(&path).expect("Cannot open crash file");
+
+        file.write_all(file_content.as_bytes()).expect("Cannot write crash file content");
+
+        let mut lock = Lock::read();
+        lock.last_crash = path;
+        Lock::write(&lock);
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -55,5 +78,13 @@ impl FromStr for CrashSpan {
 pub(crate) struct CrashContext{
     target_framework: String,
     os: String,
-    timestamp: u8
+    timestamp: i64
+}
+
+impl CrashContext{
+    pub(crate) fn generate(target_framework: String) -> CrashContext{
+        let timestamp = Utc::now().timestamp();
+        let os = std::env::consts::OS.to_string();
+        CrashContext{target_framework, os, timestamp}
+    }
 }
