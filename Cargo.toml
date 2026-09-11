@@ -1,11 +1,18 @@
 [package]
-name = "beautiful-issues"
+name = "bissue"
 version = "0.1.0"
 edition = "2024"
-description = "beautiful-issues let you debug and report problems with ease."
+description = "beautiful-issues let you debug and report problems with ease. \nProject repo: https://github.com/solas-org/beautiful-issues ⭐"
+homepage = "https://github.com/solas-org/beautiful-issues"
+repository = "https://github.com/solas-org/beautiful-issues"
 
 [dependencies]
 serde = { version = "1.0.229", features = ["derive"] }
 clap = { version = "4.6.6", features = ["derive"] }
 url = "2.5.8"
-toml = "1.1.5+spec-1.1.0"
+toml = "1.1.5"
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"

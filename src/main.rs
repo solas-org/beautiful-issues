@@ -9,7 +9,7 @@ mod lock;
 mod render;
 
 #[derive(Parser)]
-#[command(version, about, long_about = None)]
+#[command(version, about)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,

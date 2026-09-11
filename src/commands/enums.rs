@@ -5,7 +5,7 @@ use crate::models::crash::CrashSpan;
 
 #[derive(Subcommand)]
 pub(crate) enum Commands {
-    ///Creates .bissue folder in root of your project and initiates there
+    ///Create .bissue folder in root of your project and initiate there
     Init{
         ///Project root path
         #[arg(default_value_os_t = std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))]
@@ -39,15 +39,15 @@ pub(crate) enum Commands {
 
 #[derive(Subcommand)]
 pub(crate) enum IssueSubcommands{
-    ///Interactively creates new issue
+    ///Interactively create new issue
     New{
         ///Output file path
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
-    ///Prints all issues
+    ///Print all issues
     List,
-    ///Deletes issues
+    ///Delete issues
     Del{
         #[command(subcommand)]
         target: Option<DelTarget>,
@@ -56,7 +56,7 @@ pub(crate) enum IssueSubcommands{
 
 #[derive(Subcommand)]
 pub(crate) enum CrashSubcommands{
-    ///Creates new crash
+    ///Create new crash
     New{
         ///Error code like ERR0001
         error_code: String,
@@ -75,9 +75,9 @@ pub(crate) enum CrashSubcommands{
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
-    ///Prints all crashes
+    ///Print all crashes
     List,
-    ///Deletes crashes
+    ///Delete crashes
     Del{
         #[command(subcommand)]
         target: Option<DelTarget>,
@@ -86,7 +86,7 @@ pub(crate) enum CrashSubcommands{
 
 #[derive(Subcommand)]
 pub(crate) enum TicketSubcommand{
-    ///Interactively creates new ticket
+    ///Interactively create new ticket
     New{
         ///Crash file that ticket will be based on
         crash_file: Option<PathBuf>,
@@ -94,7 +94,7 @@ pub(crate) enum TicketSubcommand{
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
-    ///Pushes ticket to error's dev remote or to custom remote
+    ///Push ticket to error's dev remote or to custom remote
     Push{
         #[command(subcommand)]
         target: Option<PushTarget>,
@@ -102,9 +102,9 @@ pub(crate) enum TicketSubcommand{
         #[arg(short, long)]
         remote: Option<Url>,
     },
-    ///Prints all tickets
+    ///Print all tickets
     List,
-    ///Deletes tickets
+    ///Delete tickets
     Del{
         #[command(subcommand)]
         target: Option<DelTarget>,
