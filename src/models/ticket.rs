@@ -1,4 +1,5 @@
-﻿use serde::{Deserialize, Serialize};
+﻿use std::path::PathBuf;
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
 pub(crate) struct Ticket {
@@ -6,5 +7,6 @@ pub(crate) struct Ticket {
     description: String,
     category: String,
     error_name: String,
-    error_message: String
+    error_message: String,
+    attached_files: Vec<PathBuf>
 }

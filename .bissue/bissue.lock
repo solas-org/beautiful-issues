@@ -1,0 +1,5 @@
+frameworks = []
+last_issue = ""
+last_crash = ""
+last_ticket = ""
+pushed = []

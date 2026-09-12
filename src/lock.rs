@@ -1,10 +1,11 @@
-﻿use std::fs::{read, File};
+﻿use crate::commands::enums::Framework;
+use crate::render::unwrappers::{SafeUnwrap, create_file, read};
+use serde::{Deserialize, Serialize};
 use std::io::Write;
 use std::path::PathBuf;
-use serde::{Deserialize, Serialize};
-use crate::commands::enums::Framework;
+use std::sync::OnceLock;
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize, Default, Clone)]
 pub(crate) struct Lock{
     pub(crate) frameworks: Vec<Framework>,
     pub(crate) last_issue: PathBuf,
@@ -15,18 +16,28 @@ pub(crate) struct Lock{
 
 impl Lock {
     pub(crate) fn write(lock: &Lock){
-        let file_content = toml::to_string(&lock).expect("Cannot serialize lock file");
+        let file_content = toml::to_string(&lock).unwrap_safe("Cannot serialize lock file");
 
         let path = PathBuf::from("./.bissue/bissue.lock");
 
-        let mut file = File::create(&path).expect("Cannot open lock file");
+        let mut file = create_file(&path, "Cannot open lock file");
 
-        file.write_all(file_content.as_bytes()).expect("Cannot write lock file content");
+        file.write_all(file_content.as_bytes()).unwrap_safe("Cannot write lock file content");
     }
 
-    pub(crate) fn read() -> Lock{
-        let read = read(PathBuf::from("./.bissue/bissue.lock")).expect("Cannot read lock file");
-        toml::from_slice(&read).expect("Cannot deserialize lock file")
+    fn load() -> Lock {
+        let read = read(&PathBuf::from("./.bissue/bissue.lock"),"Cannot read lock file");
+        toml::from_slice(&read).unwrap_safe("Cannot deserialize lock file")
+    }
+
+    pub(crate) fn global_clone() -> Lock {
+        static INSTANCE: OnceLock<Lock> = OnceLock::new();
+        INSTANCE.get_or_init(Self::load).clone()
+    }
+
+    pub(crate) fn global_ref() -> &'static Lock {
+        static INSTANCE: OnceLock<Lock> = OnceLock::new();
+        INSTANCE.get_or_init(Self::load)
     }
 
     pub(crate) fn get_all_frameworks(&self) -> String{

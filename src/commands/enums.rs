@@ -1,8 +1,8 @@
-﻿use crate::models::crash::CrashSpan;
+﻿use crate::models::crash::Crash;
 use clap::{Subcommand, ValueEnum};
+use derive_more::Display;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use derive_more::Display;
 use url::Url;
 
 #[derive(Subcommand)]
@@ -68,22 +68,12 @@ pub(crate) enum IssueSubcommands{
 pub(crate) enum CrashSubcommands{
     ///Create new crash
     New{
-        ///Error code like ERR0001
-        error_code: String,
-        ///Path to file where error occurs
-        file_path: PathBuf,
-        ///Span in format LINE:COLUMN[:LENGTH] (12:23:5)
-        span: CrashSpan,
-        
-        ///Original error message
-        #[arg(short, long)]
-        msg: Option<String>,
-        ///Original invocation trace of error
-        #[arg(short, long)]
-        trace: Option<Vec<String>>,
+        ///List of all issues happened in that crash (format: CODE|FILE_PATH|SPAN|MESSAGE[|TRACE1,TRACE2])
+        #[arg(required = true)]
+        issues: Vec<Crash>,
         ///Target framework
         #[arg(short, long)]
-        framework: Option<String>,
+        framework: Option<Framework>,
         ///Output file path
         #[arg(short, long)]
         output: Option<PathBuf>,
