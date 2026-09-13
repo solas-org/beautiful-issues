@@ -1,9 +1,11 @@
-﻿use crate::models::crash::Crash;
-use clap::{Subcommand, ValueEnum};
+﻿use crate::models::crash::Diagnostic;
+use clap::{Args, Subcommand, ValueEnum};
 use derive_more::Display;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use url::Url;
+use crate::models::issue::Issue;
+use crate::models::ticket::Ticket;
 
 #[derive(Subcommand)]
 pub(crate) enum Commands {
@@ -49,8 +51,10 @@ pub(crate) enum Framework{
 
 #[derive(Subcommand)]
 pub(crate) enum IssueSubcommands{
-    ///Interactively create new issue
+    ///Create new issue
     New{
+        #[command(flatten)]
+        issue: Issue,
         ///Output file path
         #[arg(short, long)]
         output: Option<PathBuf>,
@@ -68,9 +72,9 @@ pub(crate) enum IssueSubcommands{
 pub(crate) enum CrashSubcommands{
     ///Create new crash
     New{
-        ///List of all issues happened in that crash (format: CODE|FILE_PATH|SPAN|MESSAGE[|TRACE1,TRACE2])
+        ///List of all issues happened in that crash (diagnostic format: CODE|FILE_PATH|SPAN|MESSAGE[|TRACE1,TRACE2,...])
         #[arg(required = true)]
-        issues: Vec<Crash>,
+        diagnostics: Vec<Diagnostic>,
         ///Target framework
         #[arg(short, long)]
         framework: Option<Framework>,
@@ -89,21 +93,24 @@ pub(crate) enum CrashSubcommands{
 
 #[derive(Subcommand)]
 pub(crate) enum TicketSubcommand{
-    ///Interactively create new ticket
+    ///Create new ticket
     New{
-        ///Crash file that ticket will be based on
-        crash_file: Option<PathBuf>,
+        #[command(flatten)]
+        ticket: Ticket,
         ///Output file path
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
-    ///Push ticket to error's dev remote or to custom remote
+    ///Push ticket to remote
     Push{
         #[command(subcommand)]
-        target: Option<PushTarget>,
-        ///Custom remote url (overrides dev's one)
-        #[arg(short, long)]
-        remote: Option<Url>,
+        target:PushTarget,
+
+        ///Dev remotes are servers that developers of issue left.
+        ///User remotes you can change in config
+        remote_type: PushRemote,
+        ///Custom remotes for push (used only if remote type is custom)
+        custom_remotes: Vec<Url>
     },
     ///Print all tickets
     List,
@@ -140,4 +147,13 @@ pub(crate) enum PushTarget{
     Unpushed,
     ///Push all tickets
     All,
+}
+
+#[derive(ValueEnum, Clone)]
+pub(crate) enum PushRemote{
+    None,
+    All,
+    Dev,
+    User,
+    Custom
 }

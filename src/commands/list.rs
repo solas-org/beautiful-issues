@@ -1,4 +1,4 @@
-﻿use crate::render::unwrappers::read_dir;
+﻿use crate::render::unwrappers::{read_dir, SafeUnwrap};
 use std::path::PathBuf;
 use owo_colors::OwoColorize;
 
@@ -9,7 +9,13 @@ pub(crate) fn list(dir: &PathBuf, extension: &str){
         println!("There is no files with .{extension} extension");
     }
     for path in &paths{
-        println!("{cnt}. {}", path.file_name().unwrap().display().italic());
+        let display = path.display().to_string();
+        let file_url = if display.starts_with('/') {
+            format!("file://{}", display)
+        } else {
+            format!("file:///{}", display)
+        };
+        println!("{cnt}. \x1b]8;;{}\x1b\\{}\x1b]8;;\x1b\\", file_url, path.file_name().unwrap().display().italic());
         cnt += 1;
     }
 }
@@ -21,7 +27,7 @@ pub(crate) fn paths_by_extension(dir: &PathBuf, extension: &str) -> Vec<PathBuf>
         if let Ok(file) = file{
             let path = &file.path();
             if path.extension().unwrap_or_default() == extension {
-                res.push(file.path());
+                res.push(dunce::canonicalize(file.path()).unwrap_safe("Cannot canonicalize path"));
             }
         };
     }

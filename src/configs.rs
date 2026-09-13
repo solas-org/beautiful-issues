@@ -23,6 +23,7 @@ impl DevConfig {
 
 #[derive(Serialize, Deserialize)]
 pub(crate) struct UserConfig {
+    pub(crate) remotes: Vec<String>,
     pub(crate) ok_color: String,
     pub(crate) err_color: String,
 }

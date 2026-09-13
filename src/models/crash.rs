@@ -13,12 +13,12 @@ use crate::commands::enums::Framework;
 
 #[derive(Serialize, Deserialize)]
 pub(crate) struct CrashFile {
-    pub(crate) crashes: Vec<Crash>,
+    pub(crate) crashes: Vec<Diagnostic>,
     pub(crate) context: CrashContext
 }
 
 #[derive(Args, Clone, Serialize, Deserialize)]
-pub(crate) struct Crash {
+pub(crate) struct Diagnostic {
     ///Error code like ERR0001
     pub(crate) error_code: String,
     ///Path to file where error occurs
@@ -33,13 +33,13 @@ pub(crate) struct Crash {
     pub(crate) trace: Vec<String>,
 }
 
-impl FromStr for Crash {
+impl FromStr for Diagnostic {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let parts: Vec<&str> = s.split('|').collect();
         if parts.len() < 4 {
-            return Err("Expected format: 'CODE|FILE_PATH|SPAN|MESSAGE[|TRACE1,TRACE2]'".to_string());
+            return Err("Expected format: 'CODE|FILE_PATH|SPAN|MESSAGE[|TRACE1,TRACE2,...]'".to_string());
         }
 
         let error_code = parts[0].trim().to_string();
@@ -56,7 +56,7 @@ impl FromStr for Crash {
             Vec::new()
         };
 
-        Ok(Crash {
+        Ok(Diagnostic {
             error_code,
             file_path,
             span,

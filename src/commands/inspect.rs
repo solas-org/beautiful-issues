@@ -1,6 +1,5 @@
-﻿use url::Url;
-use crate::models::ticket::Ticket;
+﻿use std::path::PathBuf;
 
-pub(crate) fn push(tickets: Vec<Ticket>, remotes: Vec<Url>){
+pub(crate) fn inspect(crash_file: &Option<PathBuf>){
     //TODO
 }

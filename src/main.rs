@@ -6,10 +6,12 @@ use crate::commands::init::init;
 use crate::commands::list::list;
 use crate::lock::Lock;
 use crate::models::crash::{CrashContext, CrashFile};
-use crate::render::unwrappers::exists;
+use crate::render::unwrappers::{exists};
 use clap::Parser;
 use commands::enums::Commands;
 use std::path::PathBuf;
+use crate::commands::inspect::inspect;
+use crate::commands::push::push;
 
 mod models;
 mod commands;
@@ -18,7 +20,7 @@ mod lock;
 mod render;
 
 #[derive(Parser)]
-#[command(version, about)]
+#[command(version, about, disable_help_subcommand = true)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -32,17 +34,17 @@ fn main() {
             init(&path, &frameworks);
         }
         Commands::Inspect {crash_file} => {
-            //TODO
+            inspect(&crash_file);
         }
         Commands::Crash {subcommand} => {
             match subcommand{
                 CrashSubcommands::New {
-                    issues,
+                    diagnostics,
                     framework,
                     output } => {
                     CrashFile
                     {
-                        crashes: issues.clone(),
+                        crashes: diagnostics.clone(),
                         context: CrashContext::generate(&framework)
                     }.save(output.clone())
                 }
@@ -62,8 +64,8 @@ fn main() {
         }
         Commands::Issue {subcommand} => {
             match subcommand {
-                IssueSubcommands::New { output } => {
-                    //TODO
+                IssueSubcommands::New { issue, output } => {
+                    issue.save(output.clone());
                 }
                 IssueSubcommands::List => list(&PathBuf::from("./.bissue/issues"), "issue"),
                 IssueSubcommands::Del { target } => {
@@ -82,8 +84,8 @@ fn main() {
 
         Commands::Ticket { subcommand } => {
             match subcommand {
-                TicketSubcommand::New { crash_file, output } => {
-                    //TODO
+                TicketSubcommand::New { ticket, output } => {
+                    ticket.save(output.clone());
                 }
                 TicketSubcommand::List => list(&PathBuf::from("./.bissue/tickets"), "ticket"),
                 TicketSubcommand::Del { target } => {
@@ -97,7 +99,9 @@ fn main() {
                         Lock::write(&lock);
                     }
                 }
-                TicketSubcommand::Push { target, remote } => {}
+                TicketSubcommand::Push { target, remote_type, custom_remotes } => {
+                    push(target, remote_type, custom_remotes)
+                }
             }
         }
     }

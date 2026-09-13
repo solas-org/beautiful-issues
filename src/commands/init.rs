@@ -44,6 +44,7 @@ pub(crate) fn init(project_path: &PathBuf, frameworks: &Vec<Framework>) {
 
 
     let user_config = UserConfig {
+        remotes: Vec::new(),
         ok_color: "#42f5b6".to_string(),
         err_color: "#f54266".to_string()
     };
