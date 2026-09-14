@@ -1,5 +1,5 @@
-﻿use crate::models::crash::Diagnostic;
-use clap::{Args, Subcommand, ValueEnum};
+use crate::models::crash::Diagnostic;
+use clap::{Subcommand, ValueEnum};
 use derive_more::Display;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;

@@ -1,18 +1,36 @@
 use serde::{Deserialize, Serialize};
-use std::fs::read;
 use std::path::PathBuf;
 use std::sync::OnceLock;
 
-#[derive(Serialize, Deserialize)]
+pub(crate) fn find_bissue_dir() -> PathBuf {
+    if let Ok(mut cur) = std::env::current_dir() {
+        loop {
+            let candidate = cur.join(".bissue");
+            if candidate.is_dir() {
+                return candidate;
+            }
+            if !cur.pop() {
+                break;
+            }
+        }
+    }
+    PathBuf::from("./.bissue")
+}
+
+#[derive(Serialize, Deserialize, Default, Clone)]
 pub(crate) struct DevConfig {
     pub(crate) remotes: Vec<String>,
 }
 
 impl DevConfig {
-    fn load() -> DevConfig {
-        let read =
-            read(PathBuf::from("./.bissue/dev_config.toml")).expect("Cannot read dev config file");
-        toml::from_slice(&read).expect("Cannot deserialize dev config file")
+    pub(crate) fn load() -> DevConfig {
+        let path = find_bissue_dir().join("dev_config.toml");
+        if let Ok(read) = std::fs::read(&path)
+            && let Ok(cfg) = toml::from_slice(&read)
+        {
+            return cfg;
+        }
+        DevConfig::default()
     }
 
     pub(crate) fn global() -> &'static DevConfig {
@@ -21,18 +39,32 @@ impl DevConfig {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub(crate) struct UserConfig {
     pub(crate) remotes: Vec<String>,
     pub(crate) ok_color: String,
     pub(crate) err_color: String,
 }
 
+impl Default for UserConfig {
+    fn default() -> Self {
+        Self {
+            remotes: Vec::new(),
+            ok_color: "#42f5b6".to_string(),
+            err_color: "#f54266".to_string(),
+        }
+    }
+}
+
 impl UserConfig {
-    fn load() -> UserConfig {
-        let read = read(PathBuf::from("./.bissue/user_config.toml"))
-            .expect("Cannot read user config file");
-        toml::from_slice(&read).expect("Cannot deserialize user config file")
+    pub(crate) fn load() -> UserConfig {
+        let path = find_bissue_dir().join("user_config.toml");
+        if let Ok(read) = std::fs::read(&path)
+            && let Ok(cfg) = toml::from_slice(&read)
+        {
+            return cfg;
+        }
+        UserConfig::default()
     }
 
     pub(crate) fn global() -> &'static UserConfig {

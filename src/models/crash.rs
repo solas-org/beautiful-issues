@@ -1,11 +1,10 @@
-﻿use crate::configs::UserConfig;
+use crate::configs::{find_bissue_dir, UserConfig};
 use crate::lock::Lock;
 use crate::render::styling::parse_hex;
-use crate::render::unwrappers::{SafeUnwrap, create_file};
+use anyhow::{Context, Result};
 use chrono::Utc;
 use owo_colors::OwoColorize;
 use serde::{Deserialize, Serialize};
-use std::io::Write;
 use std::path::PathBuf;
 use std::str::FromStr;
 use clap::Args;
@@ -14,7 +13,7 @@ use crate::commands::enums::Framework;
 #[derive(Serialize, Deserialize)]
 pub(crate) struct CrashFile {
     pub(crate) crashes: Vec<Diagnostic>,
-    pub(crate) context: CrashContext
+    pub(crate) context: CrashContext,
 }
 
 #[derive(Args, Clone, Serialize, Deserialize)]
@@ -67,32 +66,42 @@ impl FromStr for Diagnostic {
 }
 
 impl CrashFile {
-    pub(crate) fn save(&self, output: Option<PathBuf>) {
+    pub(crate) fn save(&self, output: Option<PathBuf>) -> Result<PathBuf> {
         let user_config = UserConfig::global();
 
         let generated_name = Utc::now().format("%Y-%m-%d_%H-%M-%S");
-        let path = output.unwrap_or_else(||
-            PathBuf::from(format!("./.bissue/crashes/{generated_name}.crash")));
+        let path = output.unwrap_or_else(|| {
+            find_bissue_dir().join(format!("crashes/{generated_name}.crash"))
+        });
 
-        let file_content = serde_json::to_string_pretty(&self).unwrap_safe("Cannot serialize crash file");
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)
+                .with_context(|| format!("Cannot create directory {}", parent.display()))?;
+        }
 
-        let mut file = create_file(&path, "Cannot create crash file");
+        let file_content = serde_json::to_string_pretty(&self)
+            .context("Cannot serialize crash file")?;
 
-        file.write_all(file_content.as_bytes()).unwrap_safe("Cannot create crash file");
+        std::fs::write(&path, file_content.as_bytes())
+            .with_context(|| format!("Cannot create crash file at {}", path.display()))?;
 
-        let (ok_r, ok_g, ok_b) = parse_hex(&*user_config.ok_color);
-        println!("{} {}",
-                 "Successfully created crash file at path:".truecolor(ok_r,ok_g,ok_b).bold(),
-                 &path.display().italic());
+        let (ok_r, ok_g, ok_b) = parse_hex(&user_config.ok_color);
+        println!(
+            "{} {}",
+            "Successfully created crash file at path:".truecolor(ok_r, ok_g, ok_b).bold(),
+            path.display().italic()
+        );
 
-        let mut lock = Lock::global_clone();
-        lock.last_crash = path;
-        Lock::write(&lock);
+        let mut lock = Lock::load();
+        lock.last_crash = path.clone();
+        lock.write()?;
+
+        Ok(path)
     }
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-pub(crate) struct CrashSpan{
+pub(crate) struct CrashSpan {
     line: usize,
     column: usize,
     len: Option<usize>,
@@ -102,7 +111,6 @@ impl FromStr for CrashSpan {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-
         let parts: Vec<&str> = s.split(':').collect();
 
         if parts.len() < 2 || parts.len() > 3 {
@@ -132,20 +140,20 @@ impl FromStr for CrashSpan {
 }
 
 #[derive(Serialize, Deserialize)]
-pub(crate) struct CrashContext{
+pub(crate) struct CrashContext {
     target_framework: String,
     os: String,
     timestamp: i64,
 }
 
-impl CrashContext{
-    pub(crate) fn generate(framework: &Option<Framework>) -> CrashContext{
-        let mut target_framework  = Lock::global_ref().get_all_frameworks();
-        if framework.is_some(){
-            target_framework = framework.as_ref().unwrap().to_string();
-        }
+impl CrashContext {
+    pub(crate) fn generate(framework: Option<&Framework>) -> CrashContext {
+        let target_framework = match framework {
+            Some(f) => f.to_string(),
+            None => Lock::load().get_all_frameworks(),
+        };
         let timestamp = Utc::now().timestamp();
         let os = std::env::consts::OS.to_string();
-        CrashContext{target_framework, os, timestamp}
+        CrashContext { target_framework, os, timestamp }
     }
 }

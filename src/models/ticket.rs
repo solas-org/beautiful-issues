@@ -1,13 +1,12 @@
-﻿use std::io::Write;
-use std::path::PathBuf;
+use anyhow::{Context, Result};
 use chrono::Utc;
 use clap::Args;
 use owo_colors::OwoColorize;
 use serde::{Deserialize, Serialize};
-use crate::configs::UserConfig;
+use std::path::PathBuf;
+use crate::configs::{find_bissue_dir, UserConfig};
 use crate::lock::Lock;
 use crate::render::styling::parse_hex;
-use crate::render::unwrappers::{create_file, SafeUnwrap};
 
 #[derive(Args, Clone, Serialize, Deserialize)]
 pub(crate) struct Ticket {
@@ -22,28 +21,43 @@ pub(crate) struct Ticket {
 }
 
 impl Ticket {
-    pub(crate) fn save(&self, output: Option<PathBuf>){
+    pub(crate) fn save(&self, output: Option<PathBuf>) -> Result<PathBuf> {
         let user_config = UserConfig::global();
 
-        let now = Utc::now().format("%Y-%m-%d_%H-%M-%S").to_string();
-        let mut generated_name = String::new();
-        generated_name = self.header.as_ref().unwrap_or_else(|| &generated_name).to_string();
-        let path = output.unwrap_or_else(||
-            PathBuf::from(format!("./.bissue/issues/{generated_name}_{now}.ticket")));
+        let now = Utc::now().format("%Y-%m-%d_%H-%M-%S");
+        let prefix = self
+            .header
+            .as_deref()
+            .map(|h| h.trim())
+            .filter(|h| !h.is_empty())
+            .unwrap_or("ticket");
 
-        let file_content = serde_json::to_string_pretty(&self).unwrap_safe("Cannot serialize ticket file");
+        let path = output.unwrap_or_else(|| {
+            find_bissue_dir().join(format!("tickets/{prefix}_{now}.ticket"))
+        });
 
-        let mut file = create_file(&path, "Cannot create ticket file");
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)
+                .with_context(|| format!("Cannot create directory {}", parent.display()))?;
+        }
 
-        file.write_all(file_content.as_bytes()).unwrap_safe("Cannot create ticket file");
+        let file_content = serde_json::to_string_pretty(&self)
+            .context("Cannot serialize ticket file")?;
 
-        let (ok_r, ok_g, ok_b) = parse_hex(&*user_config.ok_color);
-        println!("{} {}",
-                 "Successfully created ticket file at path:".truecolor(ok_r,ok_g,ok_b).bold(),
-                 &path.display().italic());
+        std::fs::write(&path, file_content.as_bytes())
+            .with_context(|| format!("Cannot create ticket file at {}", path.display()))?;
 
-        let mut lock = Lock::global_clone();
-        lock.last_ticket = path;
-        Lock::write(&lock);
+        let (ok_r, ok_g, ok_b) = parse_hex(&user_config.ok_color);
+        println!(
+            "{} {}",
+            "Successfully created ticket file at path:".truecolor(ok_r, ok_g, ok_b).bold(),
+            path.display().italic()
+        );
+
+        let mut lock = Lock::load();
+        lock.last_ticket = path.clone();
+        lock.write()?;
+
+        Ok(path)
     }
 }

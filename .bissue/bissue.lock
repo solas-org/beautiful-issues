@@ -1,5 +1,0 @@
-frameworks = []
-last_issue = "./.bissue/issues/.issue"
-last_crash = ""
-last_ticket = "./.bissue/issues/name_2026-09-13_08-39-55.ticket"
-pushed = []

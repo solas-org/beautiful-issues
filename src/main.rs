@@ -1,17 +1,15 @@
-extern crate core;
-
 use crate::commands::del::del;
 use crate::commands::enums::{CrashSubcommands, DelTarget, IssueSubcommands, TicketSubcommand};
 use crate::commands::init::init;
+use crate::commands::inspect::inspect;
 use crate::commands::list::list;
+use crate::commands::push::push;
+use crate::configs::find_bissue_dir;
 use crate::lock::Lock;
 use crate::models::crash::{CrashContext, CrashFile};
-use crate::render::unwrappers::{exists};
 use clap::Parser;
 use commands::enums::Commands;
 use std::path::PathBuf;
-use crate::commands::inspect::inspect;
-use crate::commands::push::push;
 
 mod models;
 mod commands;
@@ -26,83 +24,116 @@ struct Cli {
     command: Commands,
 }
 
-fn main() {
+enum ItemKind {
+    Crash,
+    Issue,
+    Ticket,
+}
+
+impl ItemKind {
+    fn folder(&self) -> &'static str {
+        match self {
+            ItemKind::Crash => "crashes",
+            ItemKind::Issue => "issues",
+            ItemKind::Ticket => "tickets",
+        }
+    }
+
+    fn extension(&self) -> &'static str {
+        match self {
+            ItemKind::Crash => "crash",
+            ItemKind::Issue => "issue",
+            ItemKind::Ticket => "ticket",
+        }
+    }
+
+    fn get_last_path<'a>(&self, lock: &'a mut Lock) -> &'a mut PathBuf {
+        match self {
+            ItemKind::Crash => &mut lock.last_crash,
+            ItemKind::Issue => &mut lock.last_issue,
+            ItemKind::Ticket => &mut lock.last_ticket,
+        }
+    }
+}
+
+fn handle_delete(kind: ItemKind, target: Option<&DelTarget>) -> anyhow::Result<()> {
+    let dir = find_bissue_dir().join(kind.folder());
+    let mut lock = Lock::load();
+    let last_path = kind.get_last_path(&mut lock);
+
+    del(
+        target.unwrap_or(&DelTarget::Last),
+        &dir,
+        kind.extension(),
+        last_path,
+    )?;
+
+    if !last_path.exists() {
+        *last_path = PathBuf::new();
+        lock.write()?;
+    }
+    Ok(())
+}
+
+fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     match &cli.command {
         Commands::Init { path, frameworks } => {
-            init(&path, &frameworks);
+            init(path, frameworks)?;
         }
-        Commands::Inspect {crash_file} => {
-            inspect(&crash_file);
+        Commands::Inspect { crash_file } => {
+            inspect(crash_file.as_deref());
         }
-        Commands::Crash {subcommand} => {
-            match subcommand{
-                CrashSubcommands::New {
-                    diagnostics,
-                    framework,
-                    output } => {
-                    CrashFile
-                    {
-                        crashes: diagnostics.clone(),
-                        context: CrashContext::generate(&framework)
-                    }.save(output.clone())
+        Commands::Crash { subcommand } => match subcommand {
+            CrashSubcommands::New {
+                diagnostics,
+                framework,
+                output,
+            } => {
+                CrashFile {
+                    crashes: diagnostics.clone(),
+                    context: CrashContext::generate(framework.as_ref()),
                 }
-                CrashSubcommands::List => list(&PathBuf::from("./.bissue/crashes"), "crash"),
-                CrashSubcommands::Del { target } => {
-                    let lock = &mut Lock::global_clone();
-                    del(target.as_ref().unwrap_or_else(|| &DelTarget::Last),
-                        &PathBuf::from("./.bissue/crashes"), "crash", &lock.last_crash);
-
-                    if !exists(&lock.last_crash, "Cannot check if last crash path exists")
-                    {
-                        lock.last_crash = PathBuf::new();
-                        Lock::write(&lock);
-                    }
-                }
+                .save(output.clone())?;
             }
-        }
-        Commands::Issue {subcommand} => {
-            match subcommand {
-                IssueSubcommands::New { issue, output } => {
-                    issue.save(output.clone());
-                }
-                IssueSubcommands::List => list(&PathBuf::from("./.bissue/issues"), "issue"),
-                IssueSubcommands::Del { target } => {
-                    let lock = &mut Lock::global_clone();
-                    del(target.as_ref().unwrap_or_else(|| &DelTarget::Last),
-                        &PathBuf::from("./.bissue/issues"), "issue", &lock.last_issue);
-
-                    if !exists(&lock.last_issue, "Cannot check if last issue path exists")
-                    {
-                        lock.last_issue = PathBuf::new();
-                        Lock::write(&lock);
-                    }
-                }
+            CrashSubcommands::List => {
+                list(&find_bissue_dir().join("crashes"), "crash")?;
             }
-        }
-
-        Commands::Ticket { subcommand } => {
-            match subcommand {
-                TicketSubcommand::New { ticket, output } => {
-                    ticket.save(output.clone());
-                }
-                TicketSubcommand::List => list(&PathBuf::from("./.bissue/tickets"), "ticket"),
-                TicketSubcommand::Del { target } => {
-                    let lock = &mut Lock::global_clone();
-                    del(target.as_ref().unwrap_or_else(|| &DelTarget::Last),
-                        &PathBuf::from("./.bissue/tickets"), "ticket", &lock.last_ticket);
-
-                    if !exists(&lock.last_ticket, "Cannot check if last ticket path exists")
-                    {
-                        lock.last_ticket = PathBuf::new();
-                        Lock::write(&lock);
-                    }
-                }
-                TicketSubcommand::Push { target, remote_type, custom_remotes } => {
-                    push(target, remote_type, custom_remotes)
-                }
+            CrashSubcommands::Del { target } => {
+                handle_delete(ItemKind::Crash, target.as_ref())?;
             }
-        }
+        },
+        Commands::Issue { subcommand } => match subcommand {
+            IssueSubcommands::New { issue, output } => {
+                issue.save(output.clone())?;
+            }
+            IssueSubcommands::List => {
+                list(&find_bissue_dir().join("issues"), "issue")?;
+            }
+            IssueSubcommands::Del { target } => {
+                handle_delete(ItemKind::Issue, target.as_ref())?;
+            }
+        },
+        Commands::Ticket { subcommand } => match subcommand {
+            TicketSubcommand::New { ticket, output } => {
+                ticket.save(output.clone())?;
+            }
+            TicketSubcommand::List => {
+                list(&find_bissue_dir().join("tickets"), "ticket")?;
+            }
+            TicketSubcommand::Del { target } => {
+                handle_delete(ItemKind::Ticket, target.as_ref())?;
+            }
+            TicketSubcommand::Push {
+                target,
+                remote_type,
+                custom_remotes,
+            } => {
+                push(target, remote_type, custom_remotes);
+            }
+        },
     }
+
+    Ok(())
 }
