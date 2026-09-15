@@ -1,5 +1,5 @@
 use crate::commands::del::del;
-use crate::commands::enums::{CrashSubcommands, DelTarget, IssueSubcommands, TicketSubcommand};
+use crate::commands::enums::{CrashSubcommands, DelTarget, IssueSubcommands, PushTarget, TicketSubcommand};
 use crate::commands::init::init;
 use crate::commands::inspect::inspect;
 use crate::commands::list::list;
@@ -75,7 +75,8 @@ fn handle_delete(kind: ItemKind, target: Option<&DelTarget>) -> anyhow::Result<(
     Ok(())
 }
 
-fn main() -> anyhow::Result<()> {
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     match &cli.command {
@@ -130,7 +131,10 @@ fn main() -> anyhow::Result<()> {
                 remote_type,
                 custom_remotes,
             } => {
-                push(target, remote_type, custom_remotes);
+                push(
+                    target.as_ref().unwrap_or(&PushTarget::Last),
+                    remote_type,
+                    custom_remotes).await?;
             }
         },
     }

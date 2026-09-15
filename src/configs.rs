@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 pub(crate) fn find_bissue_dir() -> PathBuf {
@@ -25,6 +25,15 @@ pub(crate) struct DevConfig {
 impl DevConfig {
     pub(crate) fn load() -> DevConfig {
         let path = find_bissue_dir().join("dev_config.toml");
+        if let Ok(read) = std::fs::read(&path)
+            && let Ok(cfg) = toml::from_slice(&read)
+        {
+            return cfg;
+        }
+        DevConfig::default()
+    }
+
+    pub(crate) fn load_from_path(path: &Path) -> DevConfig {
         if let Ok(read) = std::fs::read(&path)
             && let Ok(cfg) = toml::from_slice(&read)
         {

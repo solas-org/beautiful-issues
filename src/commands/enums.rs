@@ -104,10 +104,11 @@ pub(crate) enum TicketSubcommand{
     ///Push ticket to remote
     Push{
         #[command(subcommand)]
-        target:PushTarget,
+        target: Option<PushTarget>,
 
         ///Dev remotes are servers that developers of issue left.
         ///User remotes you can change in config
+        #[arg(default_value = "all")]
         remote_type: PushRemote,
         ///Custom remotes for push (used only if remote type is custom)
         custom_remotes: Vec<Url>
@@ -151,7 +152,6 @@ pub(crate) enum PushTarget{
 
 #[derive(ValueEnum, Clone)]
 pub(crate) enum PushRemote{
-    None,
     All,
     Dev,
     User,

@@ -1,3 +1,4 @@
+use std::fs::create_dir_all;
 use anyhow::{Context, Result};
 use owo_colors::OwoColorize;
 use std::path::Path;
@@ -9,12 +10,12 @@ use crate::render::styling::parse_hex;
 pub(crate) fn init(project_path: &Path, frameworks: &[Framework]) -> Result<()> {
     let dir = project_path.join(".bissue");
 
-    std::fs::create_dir_all(&dir)
+    create_dir_all(&dir)
         .with_context(|| format!("Cannot create directory {}", dir.display()))?;
-    std::fs::create_dir_all(dir.join("crashes"))?;
-    std::fs::create_dir_all(dir.join("tickets"))?;
-    std::fs::create_dir_all(dir.join("issues"))?;
-    std::fs::create_dir_all(dir.join("issues/.libs"))?;
+    create_dir_all(dir.join("crashes"))?;
+    create_dir_all(dir.join("tickets"))?;
+    create_dir_all(dir.join("issues"))?;
+    create_dir_all(dir.join("issues/.libs"))?;
 
     let create_file_if_missing = |name: &str, content: &[u8]| -> Result<()> {
         let path = dir.join(name);
