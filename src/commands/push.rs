@@ -1,13 +1,14 @@
 use std::fs::read;
 use std::iter::FilterMap;
-use std::path::PathBuf;
+use std::ops::Index;
+use std::path::{PathBuf};
 use owo_colors::OwoColorize;
 use crate::commands::enums::{PushRemote, PushTarget};
 use crate::configs::{DevConfig, UserConfig};
 use url::Url;
 use walkdir::{DirEntry, IntoIter, WalkDir};
 use crate::lock::Lock;
-use crate::models::ticket::Ticket;
+use crate::models::ticket::{GithubTicket, Ticket};
 use crate::render::styling::parse_hex;
 
 pub(crate) async fn push(target: &PushTarget, remote_type: &PushRemote, custom_remotes: &[Url]) -> anyhow::Result<()> {
@@ -58,29 +59,31 @@ pub(crate) async fn push(target: &PushTarget, remote_type: &PushRemote, custom_r
         return Ok(())
     }
 
-    let lock = Lock::load();
+    let mut lock = Lock::load();
 
-    let get_all_tickets = |check_pushed: bool| -> anyhow::Result<Vec<Ticket>>{
-        let mut res = Vec::new();
+    let get_all_tickets = |check_pushed: bool| -> anyhow::Result<(Vec<Ticket>, Vec<PathBuf>)>{
+        let mut tickets = Vec::new();
+        let mut paths = Vec::new();
         for entry in get_dir_entries("./.bissue/tickets") {
             if entry.file_type().is_file()
                 && entry.path().extension().and_then(|e| e.to_str()) == Some("ticket")
                 && (!check_pushed || lock.pushed.contains(&PathBuf::from(entry.path()))){
                 let read = read(&entry.path())?;
-                res.push(serde_json::from_slice(&read)?);
+                tickets.push(serde_json::from_slice(&read)?);
+                paths.push(entry.path().to_path_buf())
             }
         }
-        Ok(res)
+        Ok((tickets, paths))
     };
 
-    let tickets: Vec<Ticket> = match &target {
+    let (tickets, tickets_paths): (Vec<Ticket>, Vec<PathBuf>) = match &target {
         PushTarget::Last => {
             let read = read(&lock.last_ticket)?;
-            vec![serde_json::from_slice(&read)?]
+            (vec![serde_json::from_slice(&read)?], vec![lock.last_ticket.clone()])
         }
         PushTarget::Single { path } => {
             let read = read(&path)?;
-            vec![serde_json::from_slice(&read)?]
+            (vec![serde_json::from_slice(&read)?], vec![path.clone()])
         }
         PushTarget::Unpushed => get_all_tickets(true)?,
         PushTarget::All => get_all_tickets(false)?,
@@ -98,24 +101,80 @@ pub(crate) async fn push(target: &PushTarget, remote_type: &PushRemote, custom_r
 
     let client = reqwest::Client::new();
     for remote in remotes {
-        for ticket in &tickets {
-            let res = client.post(remote.clone())
-                .json(ticket)
-                .send()
-                .await;
+        let host = remote.host_str().expect("Invalid url: no host.");
+        let is_gh = host.contains("github.com");
+
+        let github_token = if is_gh {
+            std::env::var("GITHUB_TOKEN").ok()
+        } else {
+            None
+        };
+
+        if is_gh && github_token.is_none() {
+            eprintln!(
+                "{}: GITHUB_TOKEN environment variable is not set",
+                "Error".bold().truecolor(err_r, err_g, err_b)
+            );
+            continue
+        }
+
+        for (tk_cnt, ticket) in tickets.iter().enumerate() {
+            let res = if !is_gh {
+                client.post(remote.clone())
+                    .json(ticket)
+                    .send()
+                    .await
+                    .map_err(anyhow::Error::from)
+            } else {
+                match &github_token {
+                    Some(token) => client
+                        .post(remote.clone())
+                        .header("User-Agent", "bissue")
+                        .header("Accept", "application/vnd.github+json")
+                        .header("X-GitHub-Api-Version", "2026-03-10")
+                        .bearer_auth(token)
+                        .json(&GithubTicket::create(&ticket)?)
+                        .send()
+                        .await
+                        .map_err(anyhow::Error::from),
+                    None => Err(anyhow::anyhow!("Missing GITHUB_TOKEN env variable")),
+                }
+            };
+
             match res {
-                Ok(_) => {
-                    ok_cnt += 1;
-                    println!("{} to: {remote}", "Successfully pushed".bold().truecolor(ok_r, ok_g, ok_b));
+                Ok(response) => {
+                    let status = response.status();
+                    if status.is_success() {
+                        lock.pushed.push(tickets_paths[tk_cnt].clone());
+                        ok_cnt += 1;
+                        println!(
+                            "{} to: {remote}",
+                            "Successfully pushed".bold().truecolor(ok_r, ok_g, ok_b)
+                        );
+                    } else {
+                        let error_body = response.text().await.unwrap_or_default();
+                        err_cnt += 1;
+                        eprintln!(
+                            "{}: HTTP {} - {}",
+                            "Failed to push".bold().truecolor(err_r, err_g, err_b),
+                            status,
+                            error_body
+                        );
+                    }
                 }
                 Err(e) => {
                     err_cnt += 1;
-                    eprintln!("{}: {}", "Failed to push".bold().truecolor(err_r, err_g, err_b), e);
+                    eprintln!(
+                        "{}: Network error: {}",
+                        "Failed to push".bold().truecolor(err_r, err_g, err_b),
+                        e
+                    );
                 }
             }
-
         }
     }
+
+    lock.write()?;
 
     println!(
         "Pushing complete!\n{ok_cnt} {}\n{err_cnt} {}",

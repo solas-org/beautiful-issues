@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use chrono::Utc;
 use clap::Args;
 use owo_colors::OwoColorize;
@@ -11,9 +11,9 @@ use crate::render::styling::parse_hex;
 #[derive(Args, Clone, Serialize, Deserialize)]
 pub(crate) struct Ticket {
     ///One-line description for your problem
-    header: Option<String>,
+    header: String,
     ///Full description of your problem
-    description: Option<String>,
+    description: String,
     ///Specific crash file that ticket will be based on
     crash_file: Option<PathBuf>,
     ///List of all diagnostics in crash [default: all]
@@ -25,12 +25,7 @@ impl Ticket {
         let user_config = UserConfig::global();
 
         let now = Utc::now().format("%Y-%m-%d_%H-%M-%S");
-        let prefix = self
-            .header
-            .as_deref()
-            .map(|h| h.trim())
-            .filter(|h| !h.is_empty())
-            .unwrap_or("ticket");
+        let prefix = self.header.trim();
 
         let path = output.unwrap_or_else(|| {
             find_bissue_dir().join(format!("tickets/{prefix}_{now}.ticket"))
@@ -59,5 +54,21 @@ impl Ticket {
         lock.write()?;
 
         Ok(path)
+    }
+}
+
+#[derive(Serialize)]
+pub(crate) struct GithubTicket{
+    title: String,
+    body: String,
+    labels: Vec<String>
+}
+
+impl GithubTicket {
+    pub(crate) fn create(ticket: &Ticket) -> Result<GithubTicket>{
+        let title = ticket.header.clone();
+        let body = ticket.description.clone();
+
+        Ok(GithubTicket{title, body, labels: Vec::new()})
     }
 }
