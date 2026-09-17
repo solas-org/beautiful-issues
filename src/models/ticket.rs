@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result};
 use chrono::Utc;
 use clap::Args;
 use owo_colors::OwoColorize;
@@ -28,10 +28,12 @@ impl Ticket {
         let prefix = self.header.trim();
 
         let path = output.unwrap_or_else(|| {
-            find_bissue_dir().join(format!("tickets/{prefix}_{now}.ticket"))
+            find_bissue_dir().join("tickets").join(format!("{prefix}_{now}.ticket"))
         });
 
-        if let Some(parent) = path.parent() {
+        let canon = dunce::canonicalize(&path).unwrap_or(path);
+
+        if let Some(parent) = canon.parent() {
             std::fs::create_dir_all(parent)
                 .with_context(|| format!("Cannot create directory {}", parent.display()))?;
         }
@@ -39,21 +41,21 @@ impl Ticket {
         let file_content = serde_json::to_string_pretty(&self)
             .context("Cannot serialize ticket file")?;
 
-        std::fs::write(&path, file_content.as_bytes())
-            .with_context(|| format!("Cannot create ticket file at {}", path.display()))?;
+        std::fs::write(&canon, file_content.as_bytes())
+            .with_context(|| format!("Cannot create ticket file at {}", canon.display()))?;
 
         let (ok_r, ok_g, ok_b) = parse_hex(&user_config.ok_color);
         println!(
             "{} {}",
             "Successfully created ticket file at path:".truecolor(ok_r, ok_g, ok_b).bold(),
-            path.display().italic()
+            canon.display().italic()
         );
 
         let mut lock = Lock::load();
-        lock.last_ticket = path.clone();
+        lock.last_ticket = canon.clone();
         lock.write()?;
 
-        Ok(path)
+        Ok(canon)
     }
 }
 

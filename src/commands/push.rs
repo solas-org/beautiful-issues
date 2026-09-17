@@ -1,6 +1,5 @@
 use std::fs::read;
 use std::iter::FilterMap;
-use std::ops::Index;
 use std::path::{PathBuf};
 use owo_colors::OwoColorize;
 use crate::commands::enums::{PushRemote, PushTarget};
@@ -100,7 +99,10 @@ pub(crate) async fn push(target: &PushTarget, remote_type: &PushRemote, custom_r
     let mut err_cnt = 0;
 
     let client = reqwest::Client::new();
+    let mut divider = "";
     for remote in remotes {
+
+        divider = "\n";
         let host = remote.host_str().expect("Invalid url: no host.");
         let is_gh = host.contains("github.com");
 
@@ -112,13 +114,18 @@ pub(crate) async fn push(target: &PushTarget, remote_type: &PushRemote, custom_r
 
         if is_gh && github_token.is_none() {
             eprintln!(
-                "{}: GITHUB_TOKEN environment variable is not set",
-                "Error".bold().truecolor(err_r, err_g, err_b)
+                "{}: GITHUB_TOKEN environment variable is not set.\n\
+                You need to set GitHub classic token in persistent environment variable in order to push to {} remote.\n\
+                More info available here: https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens",
+                "Error".bold().truecolor(err_r, err_g, err_b), remote
             );
             continue
         }
 
+        println!("{divider}› Pushing to remote: {}...", remote);
+
         for (tk_cnt, ticket) in tickets.iter().enumerate() {
+            println!("{}. {}", tk_cnt+1, &tickets_paths[tk_cnt].display());
             let res = if !is_gh {
                 client.post(remote.clone())
                     .json(ticket)
@@ -126,19 +133,17 @@ pub(crate) async fn push(target: &PushTarget, remote_type: &PushRemote, custom_r
                     .await
                     .map_err(anyhow::Error::from)
             } else {
-                match &github_token {
-                    Some(token) => client
-                        .post(remote.clone())
-                        .header("User-Agent", "bissue")
-                        .header("Accept", "application/vnd.github+json")
-                        .header("X-GitHub-Api-Version", "2026-03-10")
-                        .bearer_auth(token)
-                        .json(&GithubTicket::create(&ticket)?)
-                        .send()
-                        .await
-                        .map_err(anyhow::Error::from),
-                    None => Err(anyhow::anyhow!("Missing GITHUB_TOKEN env variable")),
-                }
+                client
+                    .post(remote.clone())
+                    .header("User-Agent", "bissue")
+                    .header("Accept", "application/vnd.github+json")
+                    .header("X-GitHub-Api-Version", "2026-03-10")
+                    .bearer_auth(github_token.as_ref().unwrap())
+                    .json(&GithubTicket::create(&ticket)?)
+                    .send()
+                    .await
+                    .map_err(anyhow::Error::from)
+
             };
 
             match res {
@@ -149,14 +154,14 @@ pub(crate) async fn push(target: &PushTarget, remote_type: &PushRemote, custom_r
                         ok_cnt += 1;
                         println!(
                             "{} to: {remote}",
-                            "Successfully pushed".bold().truecolor(ok_r, ok_g, ok_b)
+                            "Successfully pushed ticket".bold().truecolor(ok_r, ok_g, ok_b)
                         );
                     } else {
                         let error_body = response.text().await.unwrap_or_default();
                         err_cnt += 1;
                         eprintln!(
                             "{}: HTTP {} - {}",
-                            "Failed to push".bold().truecolor(err_r, err_g, err_b),
+                            "Failed to push ticket".bold().truecolor(err_r, err_g, err_b),
                             status,
                             error_body
                         );
@@ -166,7 +171,7 @@ pub(crate) async fn push(target: &PushTarget, remote_type: &PushRemote, custom_r
                     err_cnt += 1;
                     eprintln!(
                         "{}: Network error: {}",
-                        "Failed to push".bold().truecolor(err_r, err_g, err_b),
+                        "Failed to push ticket".bold().truecolor(err_r, err_g, err_b),
                         e
                     );
                 }
@@ -177,9 +182,9 @@ pub(crate) async fn push(target: &PushTarget, remote_type: &PushRemote, custom_r
     lock.write()?;
 
     println!(
-        "Pushing complete!\n{ok_cnt} {}\n{err_cnt} {}",
-        "Successfully pushed".bold().truecolor(ok_r, ok_g, ok_b),
-        "Failed to push".bold().truecolor(err_r, err_g, err_b),
+        "{divider}Pushing complete!\n{ok_cnt} {}\n{err_cnt} {}",
+        "Tickets successfully pushed".bold().truecolor(ok_r, ok_g, ok_b),
+        "Tickets failed to push".bold().truecolor(err_r, err_g, err_b),
     );
 
     Ok(())

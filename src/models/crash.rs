@@ -71,10 +71,12 @@ impl CrashFile {
 
         let generated_name = Utc::now().format("%Y-%m-%d_%H-%M-%S");
         let path = output.unwrap_or_else(|| {
-            find_bissue_dir().join(format!("crashes/{generated_name}.crash"))
+            find_bissue_dir().join("crashes").join(format!("{generated_name}.crash"))
         });
 
-        if let Some(parent) = path.parent() {
+        let canon = dunce::canonicalize(&path).unwrap_or(path);
+
+        if let Some(parent) = canon.parent() {
             std::fs::create_dir_all(parent)
                 .with_context(|| format!("Cannot create directory {}", parent.display()))?;
         }
@@ -82,21 +84,21 @@ impl CrashFile {
         let file_content = serde_json::to_string_pretty(&self)
             .context("Cannot serialize crash file")?;
 
-        std::fs::write(&path, file_content.as_bytes())
-            .with_context(|| format!("Cannot create crash file at {}", path.display()))?;
+        std::fs::write(&canon, file_content.as_bytes())
+            .with_context(|| format!("Cannot create crash file at {}", canon.display()))?;
 
         let (ok_r, ok_g, ok_b) = parse_hex(&user_config.ok_color);
         println!(
             "{} {}",
             "Successfully created crash file at path:".truecolor(ok_r, ok_g, ok_b).bold(),
-            path.display().italic()
+            canon.display().italic()
         );
 
         let mut lock = Lock::load();
-        lock.last_crash = path.clone();
+        lock.last_crash = canon.clone();
         lock.write()?;
 
-        Ok(path)
+        Ok(canon)
     }
 }
 

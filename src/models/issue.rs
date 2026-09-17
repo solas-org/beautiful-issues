@@ -33,10 +33,12 @@ impl Issue {
             _ => chrono::Utc::now().format("issue_%Y-%m-%d_%H-%M-%S").to_string(),
         };
         let path = output.unwrap_or_else(|| {
-            find_bissue_dir().join(format!("issues/{file_name}.issue"))
+            find_bissue_dir().join("issues").join(format!("{file_name}.issue"))
         });
 
-        if let Some(parent) = path.parent() {
+        let canon = dunce::canonicalize(&path).unwrap_or(path);
+
+        if let Some(parent) = canon.parent() {
             std::fs::create_dir_all(parent)
                 .with_context(|| format!("Cannot create directory {}", parent.display()))?;
         }
@@ -44,20 +46,20 @@ impl Issue {
         let file_content = serde_json::to_string_pretty(&self)
             .context("Cannot serialize issue file")?;
 
-        std::fs::write(&path, file_content.as_bytes())
-            .with_context(|| format!("Cannot create issue file at {}", path.display()))?;
+        std::fs::write(&canon, file_content.as_bytes())
+            .with_context(|| format!("Cannot create issue file at {}", canon.display()))?;
 
         let (ok_r, ok_g, ok_b) = parse_hex(&user_config.ok_color);
         println!(
             "{} {}",
             "Successfully created issue file at path:".truecolor(ok_r, ok_g, ok_b).bold(),
-            path.display().italic()
+            canon.display().italic()
         );
 
         let mut lock = Lock::load();
-        lock.last_issue = path.clone();
+        lock.last_issue = canon.clone();
         lock.write()?;
 
-        Ok(path)
+        Ok(canon)
     }
 }
