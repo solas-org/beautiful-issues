@@ -1,11 +1,11 @@
 use std::fs::read;
-use std::iter::FilterMap;
-use std::path::{PathBuf};
+use std::path::{Path, PathBuf};
+use anyhow::Context;
 use owo_colors::OwoColorize;
 use crate::commands::enums::{PushRemote, PushTarget};
-use crate::configs::{DevConfig, UserConfig};
+use crate::configs::{find_bissue_dir, DevConfig, UserConfig};
 use url::Url;
-use walkdir::{DirEntry, IntoIter, WalkDir};
+use walkdir::{WalkDir};
 use crate::lock::Lock;
 use crate::models::ticket::{GithubTicket, Ticket};
 use crate::render::styling::parse_hex;
@@ -14,11 +14,11 @@ pub(crate) async fn push(target: &PushTarget, remote_type: &PushRemote, custom_r
     let mut user_remotes = UserConfig::global().remotes.clone();
     let mut devs_remotes= Vec::new();
 
-    let get_dir_entries = |dir: &str| -> FilterMap<IntoIter, fn(walkdir::Result<DirEntry>) -> Option<DirEntry>>{
-        WalkDir::new(dir).into_iter().filter_map(|e| e.ok())
-    };
+    let bissue_dir = find_bissue_dir();
+    let dev_configs_dir = bissue_dir.join("issues/.libs");
+    let tickets_dir = bissue_dir.join("tickets");
 
-    for entry in get_dir_entries("./.bissue/issues/lock") {
+    for entry in WalkDir::new(&dev_configs_dir).into_iter().flatten() {
         if entry.file_type().is_file() && entry.file_name() == "dev_config.toml" {
             devs_remotes.append(&mut DevConfig::load_from_path(entry.path()).remotes);
         }
@@ -45,15 +45,12 @@ pub(crate) async fn push(target: &PushTarget, remote_type: &PushRemote, custom_r
                 .collect()
         }
         PushRemote::Custom => {
-            custom_remotes
-                .iter()
-                .filter_map(|s| Url::parse(s.as_ref()).ok())
-                .collect()
+            Vec::from(custom_remotes)
         }
     };
 
 
-    if remotes.len() == 0 {
+    if remotes.is_empty() {
         println!("No remotes to push");
         return Ok(())
     }
@@ -63,10 +60,11 @@ pub(crate) async fn push(target: &PushTarget, remote_type: &PushRemote, custom_r
     let get_all_tickets = |check_pushed: bool| -> anyhow::Result<(Vec<Ticket>, Vec<PathBuf>)>{
         let mut tickets = Vec::new();
         let mut paths = Vec::new();
-        for entry in get_dir_entries("./.bissue/tickets") {
+        for entry in  WalkDir::new(&tickets_dir).into_iter().flatten() {
+            let canon_path = dunce::canonicalize(entry.path()).unwrap_or_else(|_| entry.path().to_path_buf());
             if entry.file_type().is_file()
                 && entry.path().extension().and_then(|e| e.to_str()) == Some("ticket")
-                && (!check_pushed || lock.pushed.contains(&PathBuf::from(entry.path()))){
+                && (!check_pushed || !lock.pushed.contains(&canon_path)){
                 let read = read(&entry.path())?;
                 tickets.push(serde_json::from_slice(&read)?);
                 paths.push(entry.path().to_path_buf())
@@ -75,20 +73,47 @@ pub(crate) async fn push(target: &PushTarget, remote_type: &PushRemote, custom_r
         Ok((tickets, paths))
     };
 
-    let (tickets, tickets_paths): (Vec<Ticket>, Vec<PathBuf>) = match &target {
-        PushTarget::Last => {
-            let read = read(&lock.last_ticket)?;
-            (vec![serde_json::from_slice(&read)?], vec![lock.last_ticket.clone()])
-        }
-        PushTarget::Single { path } => {
-            let read = read(&path)?;
-            (vec![serde_json::from_slice(&read)?], vec![path.clone()])
-        }
-        PushTarget::Unpushed => get_all_tickets(true)?,
-        PushTarget::All => get_all_tickets(false)?,
+    let load_ticket_file = |path: &Path| -> anyhow::Result<(Ticket, PathBuf)> {
+        let canon = dunce::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+        let bytes = read(&canon).with_context(|| format!("Cannot read ticket at {}", canon.display()))?;
+        let ticket: Ticket = serde_json::from_slice(&bytes)?;
+        Ok((ticket, canon))
     };
 
-    if tickets.len() == 0 {
+    let tickets_with_paths: Vec<(Ticket, PathBuf)> = match target {
+        PushTarget::Last => {
+            if lock.last_ticket.as_os_str().is_empty() || !lock.last_ticket.exists() {
+                println!("Last ticket does not exist");
+                return Ok(());
+            }
+            vec![load_ticket_file(&lock.last_ticket)?]
+        }
+        PushTarget::Single { path } => {
+            vec![load_ticket_file(path)?]
+        }
+        PushTarget::All | PushTarget::Unpushed => {
+            let only_unpushed = matches!(target, PushTarget::Unpushed);
+            let mut collected = Vec::new();
+
+            if tickets_dir.exists() {
+                for entry in WalkDir::new(&tickets_dir).into_iter().flatten() {
+                    let path = entry.path();
+                    if entry.file_type().is_file() && path.extension().and_then(|e| e.to_str()) == Some("ticket")
+                    {
+                        let canon = dunce::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+                        if !only_unpushed || !lock.pushed.contains(&canon) {
+                            if let Ok(item) = load_ticket_file(&canon) {
+                                collected.push(item);
+                            }
+                        }
+                    }
+                }
+            }
+            collected
+        }
+    };
+
+    if tickets_with_paths.is_empty() {
         println!("No tickets to push");
         return Ok(())
     }
@@ -101,10 +126,8 @@ pub(crate) async fn push(target: &PushTarget, remote_type: &PushRemote, custom_r
     let client = reqwest::Client::new();
     let mut divider = "";
     for remote in remotes {
-
-        divider = "\n";
         let host = remote.host_str().expect("Invalid url: no host.");
-        let is_gh = host.contains("github.com");
+        let is_gh = host.contains("api.github.com");
 
         let github_token = if is_gh {
             std::env::var("GITHUB_TOKEN").ok()
@@ -123,15 +146,12 @@ pub(crate) async fn push(target: &PushTarget, remote_type: &PushRemote, custom_r
         }
 
         println!("{divider}› Pushing to remote: {}...", remote);
+        divider = "\n";
 
-        for (tk_cnt, ticket) in tickets.iter().enumerate() {
-            println!("{}. {}", tk_cnt+1, &tickets_paths[tk_cnt].display());
-            let res = if !is_gh {
-                client.post(remote.clone())
-                    .json(ticket)
-                    .send()
-                    .await
-                    .map_err(anyhow::Error::from)
+        for (idx, (ticket, path)) in tickets_with_paths.iter().enumerate() {
+            println!("{}. {}", idx + 1, path.display());
+            let req = if !is_gh {
+                client.post(remote.clone()).json(ticket)
             } else {
                 client
                     .post(remote.clone())
@@ -140,17 +160,13 @@ pub(crate) async fn push(target: &PushTarget, remote_type: &PushRemote, custom_r
                     .header("X-GitHub-Api-Version", "2026-03-10")
                     .bearer_auth(github_token.as_ref().unwrap())
                     .json(&GithubTicket::create(&ticket)?)
-                    .send()
-                    .await
-                    .map_err(anyhow::Error::from)
-
             };
 
-            match res {
+            match req.send().await {
                 Ok(response) => {
                     let status = response.status();
                     if status.is_success() {
-                        lock.pushed.push(tickets_paths[tk_cnt].clone());
+                        lock.pushed.push(path.clone());
                         ok_cnt += 1;
                         println!(
                             "{} to: {remote}",
