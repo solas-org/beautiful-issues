@@ -23,6 +23,7 @@ pub(crate) struct DevConfig {
 }
 
 impl DevConfig {
+    #[allow(dead_code)]
     pub(crate) fn load() -> DevConfig {
         let path = find_bissue_dir().join("dev_config.toml");
         if let Ok(read) = std::fs::read(&path)
@@ -34,7 +35,7 @@ impl DevConfig {
     }
 
     pub(crate) fn load_from_path(path: &Path) -> DevConfig {
-        if let Ok(read) = std::fs::read(&path)
+        if let Ok(read) = std::fs::read(path)
             && let Ok(cfg) = toml::from_slice(&read)
         {
             return cfg;
@@ -42,17 +43,40 @@ impl DevConfig {
         DevConfig::default()
     }
 
+    #[allow(dead_code)]
     pub(crate) fn global() -> &'static DevConfig {
         static INSTANCE: OnceLock<DevConfig> = OnceLock::new();
         INSTANCE.get_or_init(Self::load)
     }
 }
 
+fn default_warn_color() -> String { "#f5a742".to_string() }
+fn default_info_color() -> String { "#429bf5".to_string() }
+fn default_border_color() -> String { "#444444".to_string() }
+fn default_text_color() -> String { "#f0f0f0".to_string() }
+fn default_subtext_color() -> String { "#888888".to_string() }
+fn default_highlight_color() -> String { "#264f78".to_string() }
+fn default_select_symbol() -> String { "››".to_string() }
+
 #[derive(Serialize, Deserialize, Clone)]
 pub(crate) struct UserConfig {
     pub(crate) remotes: Vec<String>,
     pub(crate) ok_color: String,
     pub(crate) err_color: String,
+    #[serde(default = "default_warn_color")]
+    pub(crate) warn_color: String,
+    #[serde(default = "default_info_color")]
+    pub(crate) info_color: String,
+    #[serde(default = "default_border_color")]
+    pub(crate) border_color: String,
+    #[serde(default = "default_text_color")]
+    pub(crate) text_color: String,
+    #[serde(default = "default_subtext_color")]
+    pub(crate) subtext_color: String,
+    #[serde(default = "default_highlight_color")]
+    pub(crate) highlight_color: String,
+    #[serde(default = "default_select_symbol")]
+    pub(crate) select_symbol: String,
 }
 
 impl Default for UserConfig {
@@ -61,6 +85,13 @@ impl Default for UserConfig {
             remotes: Vec::new(),
             ok_color: "#42f5b6".to_string(),
             err_color: "#f54266".to_string(),
+            warn_color: default_warn_color(),
+            info_color: default_info_color(),
+            border_color: default_border_color(),
+            text_color: default_text_color(),
+            subtext_color: default_subtext_color(),
+            highlight_color: default_highlight_color(),
+            select_symbol: default_select_symbol(),
         }
     }
 }

@@ -57,22 +57,6 @@ pub(crate) async fn push(target: &PushTarget, remote_type: &PushRemote, custom_r
 
     let mut lock = Lock::load();
 
-    let get_all_tickets = |check_pushed: bool| -> anyhow::Result<(Vec<Ticket>, Vec<PathBuf>)>{
-        let mut tickets = Vec::new();
-        let mut paths = Vec::new();
-        for entry in  WalkDir::new(&tickets_dir).into_iter().flatten() {
-            let canon_path = dunce::canonicalize(entry.path()).unwrap_or_else(|_| entry.path().to_path_buf());
-            if entry.file_type().is_file()
-                && entry.path().extension().and_then(|e| e.to_str()) == Some("ticket")
-                && (!check_pushed || !lock.pushed.contains(&canon_path)){
-                let read = read(&entry.path())?;
-                tickets.push(serde_json::from_slice(&read)?);
-                paths.push(entry.path().to_path_buf())
-            }
-        }
-        Ok((tickets, paths))
-    };
-
     let load_ticket_file = |path: &Path| -> anyhow::Result<(Ticket, PathBuf)> {
         let canon = dunce::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
         let bytes = read(&canon).with_context(|| format!("Cannot read ticket at {}", canon.display()))?;
@@ -98,13 +82,12 @@ pub(crate) async fn push(target: &PushTarget, remote_type: &PushRemote, custom_r
             if tickets_dir.exists() {
                 for entry in WalkDir::new(&tickets_dir).into_iter().flatten() {
                     let path = entry.path();
-                    if entry.file_type().is_file() && path.extension().and_then(|e| e.to_str()) == Some("ticket")
-                    {
+                    if entry.file_type().is_file() && path.extension().and_then(|e| e.to_str()) == Some("ticket") {
                         let canon = dunce::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
-                        if !only_unpushed || !lock.pushed.contains(&canon) {
-                            if let Ok(item) = load_ticket_file(&canon) {
-                                collected.push(item);
-                            }
+                        if (!only_unpushed || !lock.pushed.contains(&canon))
+                            && let Ok(item) = load_ticket_file(&canon)
+                        {
+                            collected.push(item);
                         }
                     }
                 }
@@ -159,14 +142,16 @@ pub(crate) async fn push(target: &PushTarget, remote_type: &PushRemote, custom_r
                     .header("Accept", "application/vnd.github+json")
                     .header("X-GitHub-Api-Version", "2026-03-10")
                     .bearer_auth(github_token.as_ref().unwrap())
-                    .json(&GithubTicket::create(&ticket)?)
+                    .json(&GithubTicket::create(ticket)?)
             };
 
             match req.send().await {
                 Ok(response) => {
                     let status = response.status();
                     if status.is_success() {
-                        lock.pushed.push(path.clone());
+                        if !lock.pushed.contains(path) {
+                            lock.pushed.push(path.clone());
+                        }
                         ok_cnt += 1;
                         println!(
                             "{} to: {remote}",

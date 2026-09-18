@@ -25,6 +25,26 @@ pub(crate) struct Issue {
 }
 
 impl Issue {
+    pub(crate) fn new(
+        issue_type: Option<IssueType>,
+        code: Option<String>,
+        message: Option<String>,
+        note: Option<String>,
+        advice: Option<String>,
+    ) -> Self {
+        Self {
+            issue_type,
+            code,
+            message,
+            note,
+            advice,
+        }
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.code.is_none() && self.message.is_none()
+    }
+
     pub(crate) fn save(&self, output: Option<PathBuf>) -> Result<PathBuf> {
         let user_config = UserConfig::global();
 

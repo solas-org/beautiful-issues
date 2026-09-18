@@ -32,11 +32,7 @@ pub(crate) fn init(project_path: &Path, frameworks: &[Framework]) -> Result<()> 
     let dev_content = toml::to_string(&dev_config).context("Cannot serialize dev config")?;
     create_file_if_missing("dev_config.toml", dev_content.as_bytes())?;
 
-    let user_config = UserConfig {
-        remotes: Vec::new(),
-        ok_color: "#42f5b6".to_string(),
-        err_color: "#f54266".to_string(),
-    };
+    let user_config = UserConfig::default();
     let user_content = toml::to_string(&user_config).context("Cannot serialize user config")?;
     create_file_if_missing("user_config.toml", user_content.as_bytes())?;
 

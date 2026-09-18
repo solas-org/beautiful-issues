@@ -11,13 +11,15 @@ use crate::render::styling::parse_hex;
 #[derive(Args, Clone, Serialize, Deserialize)]
 pub(crate) struct Ticket {
     ///One-line description for your problem
-    header: String,
+    #[arg(default_value = "")]
+    pub(crate) header: String,
     ///Full description of your problem
-    description: String,
+    #[arg(default_value = "")]
+    pub(crate) description: String,
     ///Specific crash file that ticket will be based on
-    crash_file: Option<PathBuf>,
+    pub(crate) crash_file: Option<PathBuf>,
     ///List of all diagnostics in crash [default: all]
-    diagnostics: Vec<u32>,
+    pub(crate) diagnostics: Vec<u32>,
 }
 
 impl Ticket {

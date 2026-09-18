@@ -104,9 +104,9 @@ impl CrashFile {
 
 #[derive(Serialize, Deserialize, Clone)]
 pub(crate) struct CrashSpan {
-    line: usize,
-    column: usize,
-    len: Option<usize>,
+    pub(crate) line: usize,
+    pub(crate) column: usize,
+    pub(crate) len: Option<usize>,
 }
 
 impl FromStr for CrashSpan {
@@ -143,9 +143,9 @@ impl FromStr for CrashSpan {
 
 #[derive(Serialize, Deserialize)]
 pub(crate) struct CrashContext {
-    target_framework: String,
-    os: String,
-    timestamp: i64,
+    pub(crate) target_framework: String,
+    pub(crate) os: String,
+    pub(crate) timestamp: i64,
 }
 
 impl CrashContext {

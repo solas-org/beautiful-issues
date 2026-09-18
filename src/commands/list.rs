@@ -3,6 +3,21 @@ use owo_colors::OwoColorize;
 use std::path::{Path, PathBuf};
 use url::Url;
 
+use crate::render::app::{run_tui_app, App, AppScreen};
+use crate::render::theme::Theme;
+use crate::render::tui::Tui;
+use crate::render::views::list::{ListModel, ListTab};
+
+pub(crate) fn list_tui(initial_tab: Option<ListTab>) -> Result<()> {
+    let theme = Theme::default_theme();
+    let tui = Tui::init()?;
+    let model = ListModel::new(initial_tab);
+    let app = App::new(AppScreen::List(model), theme);
+    run_tui_app(tui, app)?;
+    Ok(())
+}
+
+#[allow(dead_code)]
 pub(crate) fn list(dir: &Path, extension: &str) -> Result<()> {
     let paths = paths_by_extension(dir, extension)?;
     if paths.is_empty() {
