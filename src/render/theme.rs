@@ -14,9 +14,11 @@ pub(crate) struct Theme {
     pub(crate) info: Color,
     pub(crate) border: Color,
     pub(crate) text: Color,
+    pub(crate) text_invert: Color,
     pub(crate) subtext: Color,
-    pub(crate) highlight: Color,
+    pub(crate) accent: Color,
     pub(crate) select_symbol: String,
+    pub(crate) choose_symbol: String,
 }
 
 fn hex_to_color(hex: &str) -> Color {
@@ -33,9 +35,11 @@ impl Theme {
             info: hex_to_color(&config.info_color),
             border: hex_to_color(&config.border_color),
             text: hex_to_color(&config.text_color),
+            text_invert: hex_to_color(&config.text_invert_color),
             subtext: hex_to_color(&config.subtext_color),
-            highlight: hex_to_color(&config.highlight_color),
+            accent: hex_to_color(&config.accent_color),
             select_symbol: config.select_symbol.clone(),
+            choose_symbol: config.choose_symbol.clone(),
         }
     }
 
@@ -58,10 +62,10 @@ impl Theme {
         Block::default()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
-            .border_style(Style::default().fg(self.highlight))
+            .border_style(Style::default().fg(self.accent))
             .title(format!(" {title} "))
             .title_alignment(Alignment::Center)
-            .title_style(Style::default().fg(self.highlight).add_modifier(Modifier::BOLD))
+            .title_style(Style::default().fg(self.accent).add_modifier(Modifier::BOLD))
             .merge_borders(MergeStrategy::Exact)
     }
 
@@ -78,8 +82,8 @@ impl Theme {
 
     pub(crate) fn selected_style(&self) -> Style {
         Style::default()
-            .bg(self.highlight)
-            .fg(self.text)
+            .bg(self.accent)
+            .fg(self.text_invert)
             .add_modifier(Modifier::BOLD)
     }
 

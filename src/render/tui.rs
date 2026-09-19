@@ -9,6 +9,7 @@ use ratatui::crossterm::{
 };
 use ratatui::prelude::*;
 use std::io::{stdout, Stdout};
+use std::panic::{set_hook, take_hook};
 
 pub(crate) struct Tui {
     pub(crate) terminal: Terminal<CrosstermBackend<Stdout>>,
@@ -20,10 +21,10 @@ impl Tui {
         let mut out = stdout();
         execute!(out, EnterAlternateScreen, Clear(ClearType::All), MoveTo(0, 0))?;
 
-        let panic_hook = std::panic::take_hook();
-        std::panic::set_hook(Box::new(move |panic_info| {
+        let panic_hook = take_hook();
+        set_hook(Box::new(move |panic_info| {
             let _ = disable_raw_mode();
-            let _ = execute!(std::io::stdout(), LeaveAlternateScreen);
+            let _ = execute!(stdout(), LeaveAlternateScreen);
             panic_hook(panic_info);
         }));
 

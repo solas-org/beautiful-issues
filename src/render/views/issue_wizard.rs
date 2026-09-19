@@ -1,10 +1,12 @@
 use crate::models::issue::{Issue, IssueType};
 use crate::render::keys::normalize_char;
 use crate::render::theme::Theme;
+use crate::render::views::wizard::{
+    render_active_text_step, render_wizard_footer, render_wizard_header, WizardHeader, WizardLayout,
+};
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::{Alignment, Spacing};
 use ratatui::prelude::*;
-use ratatui::symbols::merge::MergeStrategy;
 use ratatui::widgets::*;
 use std::path::PathBuf;
 
@@ -191,42 +193,20 @@ impl IssueWizardModel {
     }
 
     pub(crate) fn view(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
-        let main_vert = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Min(10),
-                Constraint::Length(3),
-            ])
-            .split(area);
+        let layout = WizardLayout::new(area);
 
-        let vert_chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .spacing(Spacing::Overlap(1))
-            .constraints([
-                Constraint::Length(3),
-                Constraint::Min(7),
-            ])
-            .split(main_vert[0]);
-
-        let header_line = Line::from(vec![
-            theme.badge("ISSUE WIZARD", theme.info, Color::Black),
-            Span::raw("  "),
-            Span::styled(format!("Step {} of 5", self.active_step + 1), Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
-        ]);
-        let header_widget = Paragraph::new(header_line)
-            .alignment(Alignment::Center)
-            .block(theme.block(" New Issue Definition "));
-        frame.render_widget(header_widget, vert_chunks[0]);
-
-        let visible_steps = self.active_step + 1;
-        let mut constraints = Vec::new();
-        for step in 0..visible_steps {
-            if step == self.active_step {
-                constraints.push(Constraint::Min(5));
-            } else {
-                constraints.push(Constraint::Length(3));
-            }
-        }
+        render_wizard_header(
+            frame,
+            layout.header_area,
+            WizardHeader {
+                badge_label: "ISSUE WIZARD",
+                badge_color: theme.info,
+                active_step: self.active_step,
+                total_steps: 5,
+                title: " New Issue Definition ",
+            },
+            theme,
+        );
 
         let form_area = if self.active_step >= 1 {
             let horiz_chunks = Layout::default()
@@ -236,29 +216,21 @@ impl IssueWizardModel {
                     Constraint::Percentage(60),
                     Constraint::Fill(1),
                 ])
-                .split(vert_chunks[1]);
+                .split(layout.body_area);
 
             self.render_live_card_preview(frame, horiz_chunks[1], theme);
             horiz_chunks[0]
         } else {
-            vert_chunks[1]
+            layout.body_area
         };
 
-        let form_chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .spacing(Spacing::Overlap(1))
-            .constraints(constraints)
-            .split(form_area);
-
-        for step in 0..visible_steps {
-            match step {
-                0 => self.render_type_step(frame, form_chunks[0], theme),
-                1 => self.render_text_step(frame, form_chunks[1], 1, "Issue Code (e.g. ERR001)", &self.code, theme),
-                2 => self.render_text_step(frame, form_chunks[2], 2, "Short Description / Message", &self.message, theme),
-                3 => self.render_text_step(frame, form_chunks[3], 3, "Additional Note / Context (optional)", &self.note, theme),
-                4 => self.render_text_step(frame, form_chunks[4], 4, "Advice / Recommended Solution (optional)", &self.advice, theme),
-                _ => {}
-            }
+        match self.active_step {
+            0 => self.render_type_step(frame, form_area, theme),
+            1 => render_active_text_step(frame, form_area, 1, "Issue Code (e.g. ERR001)", &self.code, theme),
+            2 => render_active_text_step(frame, form_area, 2, "Short Description / Message", &self.message, theme),
+            3 => render_active_text_step(frame, form_area, 3, "Additional Note / Context (optional)", &self.note, theme),
+            4 => render_active_text_step(frame, form_area, 4, "Advice / Recommended Solution (optional)", &self.advice, theme),
+            _ => {}
         }
 
         let footer_shortcuts = [
@@ -267,121 +239,39 @@ impl IssueWizardModel {
             ("1/2/3 or ←/→", "Change Type (Step 1)"),
             ("Esc", "Cancel"),
         ];
-        let footer_widget = Paragraph::new(theme.shortcut_bar(&footer_shortcuts))
-            .alignment(Alignment::Center)
-            .block(Block::default());
-        frame.render_widget(footer_widget, main_vert[1]);
+        render_wizard_footer(frame, layout.footer_area, &footer_shortcuts, theme);
     }
 
     fn render_type_step(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
-        let is_completed = self.active_step > 0;
+        let block = theme.focused_block(" Step 1: Select Severity Type (← / → or 1 / 2 / 3) ");
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
 
-        if is_completed {
-            let type_badge = match self.issue_type {
-                IssueType::Error => theme.badge("ERROR", theme.err, Color::White),
-                IssueType::Warning => theme.badge("WARNING", theme.warn, Color::Black),
-                IssueType::Fatal => theme.badge("FATAL", Color::Red, Color::White),
-            };
-
-            let line = Line::from(vec![
-                Span::styled(" ✔ ", Style::default().fg(theme.ok).add_modifier(Modifier::BOLD)),
-                Span::styled("Severity: ", Style::default().fg(theme.subtext)),
-                type_badge,
-            ]);
-
-            let block = Block::default()
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded)
-                .border_style(Style::default().fg(theme.border))
-                .merge_borders(MergeStrategy::Exact);
-            let widget = Paragraph::new(line).block(block);
-            frame.render_widget(widget, area);
-        } else {
-            let block = theme.focused_block(" Step 1: Select Severity Type (← / → or 1 / 2 / 3) ");
-            let inner = block.inner(area);
-            frame.render_widget(block, area);
-
-            let sym = &theme.select_symbol;
-            let make_btn = |label: &str, matches: bool, bg: Color| -> Span {
-                if matches {
-                    Span::styled(format!("  {sym} [ {label} ]  "), Style::default().bg(bg).fg(Color::Black).add_modifier(Modifier::BOLD))
-                } else {
-                    let spaces = " ".repeat(sym.chars().count() + 2);
-                    Span::styled(format!("{spaces}[ {label} ]  "), Style::default().fg(theme.subtext))
-                }
-            };
-
-            let line = Line::from(vec![
-                make_btn("1. Error", matches!(self.issue_type, IssueType::Error), theme.err),
-                make_btn("2. Warning", matches!(self.issue_type, IssueType::Warning), theme.warn),
-                make_btn("3. Fatal", matches!(self.issue_type, IssueType::Fatal), Color::Magenta),
-            ]);
-
-            let pad_lines = (inner.height.saturating_sub(1)) / 2;
-            let mut lines = Vec::new();
-            for _ in 0..pad_lines {
-                lines.push(Line::raw(""));
-            }
-            lines.push(line);
-
-            let widget = Paragraph::new(lines)
-                .alignment(Alignment::Center);
-            frame.render_widget(widget, inner);
-        }
-    }
-
-    fn render_text_step(&self, frame: &mut Frame, area: Rect, step: usize, label: &str, value: &str, theme: &Theme) {
-        let is_active = step == self.active_step;
-        let is_completed = step < self.active_step;
-
-        if !is_active && is_completed {
-            let display_val = if value.is_empty() {
-                Span::styled("(none)", Style::default().fg(theme.subtext))
+        let sym = &theme.select_symbol;
+        let make_btn = |label: &str, matches: bool, bg: Color| -> Span {
+            if matches {
+                Span::styled(format!("  {sym} [ {label} ]  "), Style::default().bg(bg).fg(Color::Black).add_modifier(Modifier::BOLD))
             } else {
-                let truncated = if value.len() > 35 {
-                    format!("{}...", &value[..32])
-                } else {
-                    value.to_string()
-                };
-                Span::styled(truncated, Style::default().fg(theme.text).add_modifier(Modifier::BOLD))
-            };
+                let spaces = " ".repeat(sym.chars().count() + 2);
+                Span::styled(format!("{spaces}[ {label} ]  "), Style::default().fg(theme.subtext))
+            }
+        };
 
-            let line = Line::from(vec![
-                Span::styled(" ✔ ", Style::default().fg(theme.ok).add_modifier(Modifier::BOLD)),
-                Span::styled(format!("{label}: "), Style::default().fg(theme.subtext)),
-                display_val,
-            ]);
+        let line = Line::from(vec![
+            make_btn("1. Error", matches!(self.issue_type, IssueType::Error), theme.err),
+            make_btn("2. Warning", matches!(self.issue_type, IssueType::Warning), theme.warn),
+            make_btn("3. Fatal", matches!(self.issue_type, IssueType::Fatal), Color::Magenta),
+        ]);
 
-            let block = Block::default()
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded)
-                .border_style(Style::default().fg(theme.border))
-                .merge_borders(MergeStrategy::Exact);
-            let widget = Paragraph::new(line).block(block);
-            frame.render_widget(widget, area);
-        } else if is_active {
-            let title = format!(" Step {}: {} ", step + 1, label);
-            let block = theme.focused_block(&title);
-
-            let text_with_cursor = format!("{value}█");
-            let widget = Paragraph::new(text_with_cursor)
-                .style(Style::default().fg(theme.text))
-                .block(block)
-                .wrap(Wrap { trim: false });
-            frame.render_widget(widget, area);
-        } else {
-            let title = format!(" Step {}: {} (waiting) ", step + 1, label);
-            let block = Block::default()
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded)
-                .border_style(Style::default().fg(theme.border))
-                .title(format!(" {title} "))
-                .title_alignment(Alignment::Center)
-                .title_style(Style::default().fg(theme.subtext));
-
-            let widget = Paragraph::new(value).block(block);
-            frame.render_widget(widget, area);
+        let pad_lines = (inner.height.saturating_sub(1)) / 2;
+        let mut lines = Vec::new();
+        for _ in 0..pad_lines {
+            lines.push(Line::raw(""));
         }
+        lines.push(line);
+
+        let widget = Paragraph::new(lines).alignment(Alignment::Center);
+        frame.render_widget(widget, inner);
     }
 
     fn render_live_card_preview(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
@@ -421,15 +311,6 @@ impl IssueWizardModel {
             preview_lines.push(Line::from(Span::styled(&self.advice, Style::default().fg(theme.text))));
             preview_lines.push(Line::from(""));
         }
-
-        preview_lines.push(Line::from(Span::styled(
-            "──────────────────────────────────────────────",
-            Style::default().fg(theme.border),
-        )));
-        preview_lines.push(Line::from(Span::styled(
-            "This card shows how your custom issue will appear when inspected.",
-            Style::default().fg(theme.subtext),
-        )));
 
         let card_widget = Paragraph::new(preview_lines).wrap(Wrap { trim: false });
         frame.render_widget(card_widget, inner);

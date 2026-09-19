@@ -90,7 +90,6 @@ impl ListModel {
             KeyCode::Char('2') => Some(ListMsg::SelectTab(ListTab::Issues)),
             KeyCode::Char('3') => Some(ListMsg::SelectTab(ListTab::Tickets)),
             KeyCode::Char(c) => match normalize_char(c) {
-                'q' => Some(ListMsg::Quit),
                 'j' => Some(ListMsg::NextItem),
                 'k' => Some(ListMsg::PrevItem),
                 'o' => Some(ListMsg::OpenFile),
@@ -219,7 +218,7 @@ impl ListModel {
         let tabs = Tabs::new(titles)
             .select(tab_idx)
             .style(Style::default().fg(theme.subtext))
-            .highlight_style(Style::default().fg(theme.ok).add_modifier(Modifier::BOLD))
+            .highlight_style(Style::default().fg(theme.accent).add_modifier(Modifier::BOLD))
             .divider(Span::styled("│", Style::default().fg(theme.border)));
         frame.render_widget(tabs, tab_area);
 
@@ -318,7 +317,7 @@ impl ListModel {
         if is_tickets {
             shortcuts.push(("p", "Push Remote"));
         }
-        shortcuts.push(("q", "Quit"));
+        shortcuts.push(("Esc", "Quit"));
 
         let footer = Paragraph::new(theme.shortcut_bar(&shortcuts)).alignment(Alignment::Center);
         frame.render_widget(footer, main_chunks[2]);

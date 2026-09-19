@@ -54,9 +54,11 @@ fn default_warn_color() -> String { "#f5a742".to_string() }
 fn default_info_color() -> String { "#429bf5".to_string() }
 fn default_border_color() -> String { "#444444".to_string() }
 fn default_text_color() -> String { "#f0f0f0".to_string() }
+fn default_text_invert_color() -> String { "#ffffff".to_string() }
 fn default_subtext_color() -> String { "#888888".to_string() }
-fn default_highlight_color() -> String { "#264f78".to_string() }
+fn default_accent_color() -> String { "#264f78".to_string() }
 fn default_select_symbol() -> String { "››".to_string() }
+fn default_choose_symbol() -> String { "✓".to_string() }
 
 #[derive(Serialize, Deserialize, Clone)]
 pub(crate) struct UserConfig {
@@ -71,12 +73,16 @@ pub(crate) struct UserConfig {
     pub(crate) border_color: String,
     #[serde(default = "default_text_color")]
     pub(crate) text_color: String,
+    #[serde(default = "default_text_invert_color")]
+    pub(crate) text_invert_color: String,
     #[serde(default = "default_subtext_color")]
     pub(crate) subtext_color: String,
-    #[serde(default = "default_highlight_color")]
-    pub(crate) highlight_color: String,
+    #[serde(default = "default_accent_color")]
+    pub(crate) accent_color: String,
     #[serde(default = "default_select_symbol")]
     pub(crate) select_symbol: String,
+    #[serde(default = "default_choose_symbol")]
+    pub(crate) choose_symbol: String,
 }
 
 impl Default for UserConfig {
@@ -89,9 +95,11 @@ impl Default for UserConfig {
             info_color: default_info_color(),
             border_color: default_border_color(),
             text_color: default_text_color(),
+            text_invert_color: default_text_invert_color(),
             subtext_color: default_subtext_color(),
-            highlight_color: default_highlight_color(),
+            accent_color: default_accent_color(),
             select_symbol: default_select_symbol(),
+            choose_symbol: default_choose_symbol(),
         }
     }
 }

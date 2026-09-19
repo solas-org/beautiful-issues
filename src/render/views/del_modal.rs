@@ -61,7 +61,7 @@ impl DelModalModel {
         let backdrop = Block::default();
         frame.render_widget(backdrop, area);
 
-        let popup_area = centered_rect(64, 55, area);
+        let popup_area = centered_rect(55, area);
         let modal_title = format!(" Confirm Delete: {} ", self.title);
         let modal_block = theme.alert_block(&modal_title);
         let inner = modal_block.inner(popup_area);

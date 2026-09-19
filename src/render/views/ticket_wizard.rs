@@ -6,11 +6,13 @@ use crate::models::ticket::Ticket;
 use crate::render::keys::normalize_char;
 use crate::render::snippet::{load_file_snippet, SnippetRef};
 use crate::render::theme::Theme;
+use crate::render::views::wizard::{
+    render_active_text_step, render_wizard_footer, render_wizard_header, WizardHeader, WizardLayout,
+};
 use chrono::{DateTime, Utc};
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::{Alignment, Spacing};
 use ratatui::prelude::*;
-use ratatui::symbols::merge::MergeStrategy;
 use ratatui::widgets::*;
 use std::fs::metadata;
 use std::path::PathBuf;
@@ -291,45 +293,20 @@ impl TicketWizardModel {
     }
 
     pub(crate) fn view(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
-        let main_vert = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Min(10),
-                Constraint::Length(3),
-            ])
-            .split(area);
+        let layout = WizardLayout::new(area);
 
-        let vert_chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .spacing(Spacing::Overlap(1))
-            .constraints([
-                Constraint::Length(3),
-                Constraint::Min(7),
-            ])
-            .split(main_vert[0]);
-
-        let header_line = Line::from(vec![
-            theme.badge("TICKET WIZARD", theme.ok, Color::Black),
-            Span::raw("  "),
-            Span::styled(
-                format!("Step {} of 4", self.active_step + 1),
-                Style::default().fg(theme.text).add_modifier(Modifier::BOLD),
-            ),
-        ]);
-        let header_widget = Paragraph::new(header_line)
-            .alignment(Alignment::Center)
-            .block(theme.block(" New Ticket "));
-        frame.render_widget(header_widget, vert_chunks[0]);
-
-        let visible_steps = self.active_step + 1;
-        let mut constraints = Vec::new();
-        for step in 0..visible_steps {
-            if step == self.active_step {
-                constraints.push(Constraint::Min(6));
-            } else {
-                constraints.push(Constraint::Length(3));
-            }
-        }
+        render_wizard_header(
+            frame,
+            layout.header_area,
+            WizardHeader {
+                badge_label: "TICKET WIZARD",
+                badge_color: theme.ok,
+                active_step: self.active_step,
+                total_steps: 4,
+                title: " New Ticket ",
+            },
+            theme,
+        );
 
         let form_area = if self.active_step == 1 {
             let horiz_chunks = Layout::default()
@@ -339,7 +316,7 @@ impl TicketWizardModel {
                     Constraint::Percentage(55),
                     Constraint::Fill(1),
                 ])
-                .split(vert_chunks[1]);
+                .split(layout.body_area);
 
             let snippets = SnippetRef::extract_from_text(&self.description);
             let preview_lines = if let Some(first_ref) = snippets.first() {
@@ -386,48 +363,24 @@ impl TicketWizardModel {
 
             horiz_chunks[0]
         } else {
-            vert_chunks[1]
+            layout.body_area
         };
 
-        let form_chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .spacing(Spacing::Overlap(1))
-            .constraints(constraints)
-            .split(form_area);
-
-        for step in 0..visible_steps {
-            match step {
-                0 => self.render_text_step(
-                    frame,
-                    form_chunks[0],
-                    0,
-                    "Title / Problem Summary",
-                    &self.header,
-                    theme,
-                ),
-                1 => self.render_text_step(
-                    frame,
-                    form_chunks[1],
-                    1,
-                    "Description (supports @file[start..end])",
-                    &self.description,
-                    theme,
-                ),
-                2 => self.render_crash_step(frame, form_chunks[2], theme),
-                3 => self.render_diagnostics_step(frame, form_chunks[3], theme),
-                _ => {}
-            }
+        match self.active_step {
+            0 => render_active_text_step(frame, form_area, 0, "Title / Problem Summary", &self.header, theme),
+            1 => render_active_text_step(frame, form_area, 1, "Description (supports @file[start..end])", &self.description, theme),
+            2 => self.render_crash_step(frame, form_area, theme),
+            3 => self.render_diagnostics_step(frame, form_area, theme),
+            _ => {}
         }
 
         let footer_shortcuts = match self.active_step {
             0 => vec![
                 ("Enter/Tab", "Next Step"),
-                ("Ctrl+S", "Quick Advance"),
                 ("Esc", "Cancel"),
             ],
             1 => vec![
                 ("Enter/Tab", "Next Step"),
-                ("Ctrl+S", "Quick Advance"),
                 ("Shift+Tab", "Previous Step"),
                 ("Esc", "Cancel"),
             ],
@@ -448,147 +401,67 @@ impl TicketWizardModel {
             _ => vec![("Esc", "Cancel")],
         };
 
-        let footer_widget = Paragraph::new(theme.shortcut_bar(&footer_shortcuts))
-            .alignment(Alignment::Center)
-            .block(Block::default());
-        frame.render_widget(footer_widget, main_vert[1]);
-    }
-
-    fn render_text_step(
-        &self,
-        frame: &mut Frame,
-        area: Rect,
-        step: usize,
-        label: &str,
-        value: &str,
-        theme: &Theme,
-    ) {
-        let is_active = step == self.active_step;
-        let is_completed = step < self.active_step;
-
-        if !is_active && is_completed {
-            let display_val = if value.is_empty() {
-                Span::styled("(none)", Style::default().fg(theme.subtext))
-            } else {
-                let truncated = if value.len() > 38 {
-                    format!("{}...", &value[..35])
-                } else {
-                    value.to_string()
-                };
-                Span::styled(truncated, Style::default().fg(theme.text).add_modifier(Modifier::BOLD))
-            };
-
-            let line = Line::from(vec![
-                Span::styled(" ✔ ", Style::default().fg(theme.ok).add_modifier(Modifier::BOLD)),
-                Span::styled(format!("{label}: "), Style::default().fg(theme.subtext)),
-                display_val,
-            ]);
-
-            let block = Block::default()
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded)
-                .border_style(Style::default().fg(theme.border))
-                .merge_borders(MergeStrategy::Exact);
-            let widget = Paragraph::new(line).block(block);
-            frame.render_widget(widget, area);
-        } else if is_active {
-            let title = format!(" Step {}: {} ", step + 1, label);
-            let block = theme.focused_block(&title);
-
-            let text_with_cursor = format!("{value}█");
-            let widget = Paragraph::new(text_with_cursor)
-                .style(Style::default().fg(theme.text))
-                .block(block)
-                .wrap(Wrap { trim: false });
-            frame.render_widget(widget, area);
-        }
+        render_wizard_footer(frame, layout.footer_area, &footer_shortcuts, theme);
     }
 
     fn render_crash_step(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
-        let is_active = self.active_step == 2;
-        let is_completed = self.active_step > 2;
+        let block = theme.focused_block(" Step 3: Select Crash File to Attach (↑/↓ to choose, Enter to select) ");
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
 
-        if is_completed {
-            let display_val = match self.crash_options.get(self.crash_cursor) {
-                Some(Some(path)) => {
-                    let name = path.file_name().unwrap_or_default().to_string_lossy();
-                    Span::styled(name.to_string(), Style::default().fg(theme.text).add_modifier(Modifier::BOLD))
-                }
-                _ => Span::styled("(none)", Style::default().fg(theme.subtext)),
-            };
+        let visible_lines = inner.height as usize;
+        let scroll = if self.crash_cursor < self.crash_scroll {
+            self.crash_cursor
+        } else if self.crash_cursor >= self.crash_scroll + visible_lines && visible_lines > 0 {
+            self.crash_cursor - visible_lines + 1
+        } else {
+            self.crash_scroll
+        };
 
-            let line = Line::from(vec![
-                Span::styled(" ✔ ", Style::default().fg(theme.ok).add_modifier(Modifier::BOLD)),
-                Span::styled("Attached Crash: ", Style::default().fg(theme.subtext)),
-                display_val,
-            ]);
-
-            let block = Block::default()
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded)
-                .border_style(Style::default().fg(theme.border))
-                .merge_borders(MergeStrategy::Exact);
-            let widget = Paragraph::new(line).block(block);
-            frame.render_widget(widget, area);
-        } else if is_active {
-            let block = theme.focused_block(" Step 3: Select Crash File to Attach (↑/↓ to choose, Enter to select) ");
-            let inner = block.inner(area);
-            frame.render_widget(block, area);
-
-            let visible_lines = inner.height as usize;
-            let scroll = if self.crash_cursor < self.crash_scroll {
-                self.crash_cursor
-            } else if self.crash_cursor >= self.crash_scroll + visible_lines && visible_lines > 0 {
-                self.crash_cursor - visible_lines + 1
+        let mut lines = Vec::new();
+        for (idx, opt) in self.crash_options.iter().enumerate().skip(scroll).take(visible_lines) {
+            let is_cursor = idx == self.crash_cursor;
+            let sym = if is_cursor {
+                Span::styled(format!(" {} ", theme.select_symbol), Style::default().fg(theme.text_invert).add_modifier(Modifier::BOLD))
             } else {
-                self.crash_scroll
+                Span::raw("    ")
             };
 
-            let mut lines = Vec::new();
-            for (idx, opt) in self.crash_options.iter().enumerate().skip(scroll).take(visible_lines) {
-                let is_cursor = idx == self.crash_cursor;
-                let sym = if is_cursor {
-                    Span::styled(format!(" {} ", theme.select_symbol), Style::default().fg(theme.ok).add_modifier(Modifier::BOLD))
-                } else {
-                    Span::raw("    ")
-                };
-
-                let item_spans = match opt {
-                    None => {
-                        let text = Span::styled("<None> - Do not attach crash file (skip)", Style::default().fg(theme.subtext));
-                        vec![sym, text]
-                    }
-                    Some(path) => {
-                        let name = path.file_name().unwrap_or_default().to_string_lossy();
-                        let meta = metadata(path).ok();
-                        let size = meta.as_ref().map(|m| format!("{} B", m.len())).unwrap_or_default();
-                        let modified = meta
-                            .and_then(|m| m.modified().ok())
-                            .map(|t| {
-                                let dt: DateTime<Utc> = t.into();
-                                dt.format("%Y-%m-%d %H:%M").to_string()
-                            })
-                            .unwrap_or_default();
-
-                        vec![
-                            sym,
-                            Span::styled(format!("{:<36} ", name), Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
-                            Span::styled(format!("{:>8}  ", size), Style::default().fg(theme.info)),
-                            Span::styled(modified, Style::default().fg(theme.subtext)),
-                        ]
-                    }
-                };
-
-                let mut line = Line::from(item_spans);
-                if is_cursor {
-                    line = line.style(theme.selected_style());
+            let item_spans = match opt {
+                None => {
+                    let text = Span::styled("<None> - Do not attach crash file (skip)", Style::default());
+                    vec![sym, text]
                 }
-                lines.push(line);
-            }
+                Some(path) => {
+                    let name = path.file_name().unwrap_or_default().to_string_lossy();
+                    let meta = metadata(path).ok();
+                    let size = meta.as_ref().map(|m| format!("{} B", m.len())).unwrap_or_default();
+                    let modified = meta
+                        .and_then(|m| m.modified().ok())
+                        .map(|t| {
+                            let dt: DateTime<Utc> = t.into();
+                            dt.format("%Y-%m-%d %H:%M").to_string()
+                        })
+                        .unwrap_or_default();
 
-            let widget = Paragraph::new(lines);
-            frame.render_widget(widget, inner);
+                    vec![
+                        sym,
+                        Span::styled(format!("{:<36} ", name), Style::default().add_modifier(Modifier::BOLD)),
+                        Span::styled(format!("{:>8}  ", size), Style::default().bg(theme.info).fg(theme.text_invert)),
+                        Span::styled(modified, Style::default()),
+                    ]
+                }
+            };
+
+            let mut line = Line::from(item_spans);
+            if is_cursor {
+                line = line.style(theme.selected_style());
+            }
+            lines.push(line);
         }
+
+        let widget = Paragraph::new(lines);
+        frame.render_widget(widget, inner);
     }
 
     fn render_diagnostics_step(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
@@ -622,13 +495,13 @@ impl TicketWizardModel {
                     let is_selected = self.selected_diagnostics.get(idx).copied().unwrap_or(false);
 
                     let cursor_span = if is_cursor {
-                        Span::styled(format!("{} ", theme.select_symbol), Style::default().fg(theme.ok).add_modifier(Modifier::BOLD))
+                        Span::styled(format!("{} ", theme.select_symbol), Style::default().add_modifier(Modifier::BOLD))
                     } else {
                         Span::raw("   ")
                     };
 
                     let check_span = if is_selected {
-                        Span::styled("[✔] ", Style::default().fg(theme.ok).add_modifier(Modifier::BOLD))
+                        Span::styled(format!("[{}] ", theme.choose_symbol), Style::default().add_modifier(Modifier::BOLD))
                     } else {
                         Span::styled("[ ] ", Style::default().fg(theme.subtext))
                     };
@@ -637,9 +510,9 @@ impl TicketWizardModel {
                     let line_spans = vec![
                         cursor_span,
                         check_span,
-                        Span::styled(format!("{:<10} ", diag.error_code), Style::default().fg(theme.err).add_modifier(Modifier::BOLD)),
-                        Span::styled(format!("{file_name}:{} ", diag.span.line), Style::default().fg(theme.info)),
-                        Span::styled(&diag.message, Style::default().fg(theme.text)),
+                        Span::styled(format!("{:<10} ", diag.error_code), Style::default().bg(theme.err).fg(theme.text_invert).add_modifier(Modifier::BOLD)),
+                        Span::styled(format!("{file_name}:{} ", diag.span.line), Style::default().bg(theme.info).fg(theme.text_invert)),
+                        Span::styled(&diag.message, Style::default()),
                     ];
 
                     let mut line = Line::from(line_spans);
