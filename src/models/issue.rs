@@ -49,7 +49,7 @@ impl Issue {
         let user_config = UserConfig::global();
 
         let file_name = match &self.code {
-            Some(code) if !code.is_empty() => code.clone(),
+            Some(code) if !code.trim().is_empty() => crate::models::sanitize_filename(code),
             _ => chrono::Utc::now().format("issue_%Y-%m-%d_%H-%M-%S").to_string(),
         };
         let path = output.unwrap_or_else(|| {

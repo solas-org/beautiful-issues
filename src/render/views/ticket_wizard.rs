@@ -7,7 +7,8 @@ use crate::render::keys::normalize_char;
 use crate::render::snippet::{load_file_snippet, SnippetRef};
 use crate::render::theme::Theme;
 use crate::render::views::wizard::{
-    render_active_text_step, render_wizard_footer, render_wizard_header, WizardHeader, WizardLayout,
+    render_active_text_step, render_wizard_footer, render_wizard_header, TextInput, WizardHeader,
+    WizardLayout,
 };
 use chrono::{DateTime, Utc};
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -15,18 +16,20 @@ use ratatui::layout::{Alignment, Spacing};
 use ratatui::prelude::*;
 use ratatui::widgets::*;
 use std::fs::metadata;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use walkdir::WalkDir;
 
 pub(crate) enum TicketWizardMsg {
-    Char(char),
-    Backspace,
-    Enter,
+    InputChanged,
     NextStep,
     PrevStep,
     Up,
     Down,
     ToggleSelection,
     ToggleAll,
+    ScrollPreviewUp,
+    ScrollPreviewDown,
+    ConfirmSave,
     Quit,
 }
 
@@ -38,8 +41,8 @@ pub(crate) enum TicketWizardEffect {
 
 pub(crate) struct TicketWizardModel {
     pub(crate) active_step: usize,
-    pub(crate) header: String,
-    pub(crate) description: String,
+    pub(crate) header: TextInput,
+    pub(crate) description: TextInput,
     pub(crate) crash_options: Vec<Option<PathBuf>>,
     pub(crate) crash_cursor: usize,
     pub(crate) crash_scroll: usize,
@@ -47,6 +50,7 @@ pub(crate) struct TicketWizardModel {
     pub(crate) selected_diagnostics: Vec<bool>,
     pub(crate) diag_cursor: usize,
     pub(crate) diag_scroll: usize,
+    pub(crate) preview_scroll: usize,
     pub(crate) status: Option<String>,
 }
 
@@ -95,8 +99,8 @@ impl TicketWizardModel {
 
         Self {
             active_step: 0,
-            header: String::new(),
-            description: String::new(),
+            header: TextInput::new_single_line(""),
+            description: TextInput::new_multiline(""),
             crash_options,
             crash_cursor: initial_cursor,
             crash_scroll: 0,
@@ -104,7 +108,16 @@ impl TicketWizardModel {
             selected_diagnostics: Vec::new(),
             diag_cursor: 0,
             diag_scroll: 0,
+            preview_scroll: 0,
             status: None,
+        }
+    }
+
+    fn active_input_mut(&mut self) -> Option<&mut TextInput> {
+        match self.active_step {
+            0 => Some(&mut self.header),
+            1 => Some(&mut self.description),
+            _ => None,
         }
     }
 
@@ -116,38 +129,61 @@ impl TicketWizardModel {
             return Some(TicketWizardMsg::NextStep);
         }
 
+        if self.active_step <= 1 {
+            if let Some(input) = self.active_input_mut()
+                && input.handle_key(&key)
+            {
+                return Some(TicketWizardMsg::InputChanged);
+            }
+        } else if self.active_step == 2 {
+            match key.code {
+                KeyCode::Up => return Some(TicketWizardMsg::Up),
+                KeyCode::Down => return Some(TicketWizardMsg::Down),
+                KeyCode::Char(c) => match normalize_char(c) {
+                    'k' => return Some(TicketWizardMsg::Up),
+                    'j' => return Some(TicketWizardMsg::Down),
+                    _ => {}
+                },
+                _ => {}
+            }
+        } else if self.active_step == 3 {
+            match key.code {
+                KeyCode::Up => return Some(TicketWizardMsg::Up),
+                KeyCode::Down => return Some(TicketWizardMsg::Down),
+                KeyCode::Char(' ') => return Some(TicketWizardMsg::ToggleSelection),
+                KeyCode::Char(c) => match normalize_char(c) {
+                    'k' => return Some(TicketWizardMsg::Up),
+                    'j' => return Some(TicketWizardMsg::Down),
+                    'a' => return Some(TicketWizardMsg::ToggleAll),
+                    _ => {}
+                },
+                _ => {}
+            }
+        } else if self.active_step == 4 {
+            match key.code {
+                KeyCode::Up | KeyCode::PageUp => return Some(TicketWizardMsg::ScrollPreviewUp),
+                KeyCode::Down | KeyCode::PageDown => return Some(TicketWizardMsg::ScrollPreviewDown),
+                KeyCode::Char(c) => match normalize_char(c) {
+                    'k' => return Some(TicketWizardMsg::ScrollPreviewUp),
+                    'j' => return Some(TicketWizardMsg::ScrollPreviewDown),
+                    'y' => return Some(TicketWizardMsg::ConfirmSave),
+                    _ => {}
+                },
+                _ => {}
+            }
+        }
+
         match key.code {
             KeyCode::Esc => Some(TicketWizardMsg::Quit),
+            KeyCode::Enter => {
+                if self.active_step == 4 {
+                    Some(TicketWizardMsg::ConfirmSave)
+                } else {
+                    Some(TicketWizardMsg::NextStep)
+                }
+            }
             KeyCode::Tab => Some(TicketWizardMsg::NextStep),
             KeyCode::BackTab => Some(TicketWizardMsg::PrevStep),
-            KeyCode::Enter => Some(TicketWizardMsg::Enter),
-            KeyCode::Backspace => Some(TicketWizardMsg::Backspace),
-            KeyCode::Up => Some(TicketWizardMsg::Up),
-            KeyCode::Down => Some(TicketWizardMsg::Down),
-            KeyCode::Char(' ') => {
-                if self.active_step == 3 {
-                    Some(TicketWizardMsg::ToggleSelection)
-                } else {
-                    Some(TicketWizardMsg::Char(' '))
-                }
-            }
-            KeyCode::Char(c) => {
-                let norm = normalize_char(c);
-                match self.active_step {
-                    2 => match norm {
-                        'k' => Some(TicketWizardMsg::Up),
-                        'j' => Some(TicketWizardMsg::Down),
-                        _ => None,
-                    },
-                    3 => match norm {
-                        'k' => Some(TicketWizardMsg::Up),
-                        'j' => Some(TicketWizardMsg::Down),
-                        'a' => Some(TicketWizardMsg::ToggleAll),
-                        _ => None,
-                    },
-                    _ => Some(TicketWizardMsg::Char(c)),
-                }
-            }
             _ => None,
         }
     }
@@ -155,26 +191,21 @@ impl TicketWizardModel {
     pub(crate) fn update(&mut self, msg: TicketWizardMsg) -> TicketWizardEffect {
         match msg {
             TicketWizardMsg::Quit => TicketWizardEffect::Quit,
-            TicketWizardMsg::Char(c) => {
-                match self.active_step {
-                    0 => self.header.push(c),
-                    1 => self.description.push(c),
-                    _ => {}
-                }
-                TicketWizardEffect::None
-            }
-            TicketWizardMsg::Backspace => {
-                match self.active_step {
-                    0 => { self.header.pop(); }
-                    1 => { self.description.pop(); }
-                    2 => { self.active_step = 1; }
-                    3 => { self.active_step = 2; }
-                    _ => {}
-                }
-                TicketWizardEffect::None
-            }
+            TicketWizardMsg::InputChanged => TicketWizardEffect::None,
             TicketWizardMsg::PrevStep => {
-                self.active_step = self.active_step.saturating_sub(1);
+                if self.active_step == 4 && self.loaded_crash.is_none() {
+                    self.active_step = 2;
+                } else {
+                    self.active_step = self.active_step.saturating_sub(1);
+                }
+                TicketWizardEffect::None
+            }
+            TicketWizardMsg::ScrollPreviewUp => {
+                self.preview_scroll = self.preview_scroll.saturating_sub(2);
+                TicketWizardEffect::None
+            }
+            TicketWizardMsg::ScrollPreviewDown => {
+                self.preview_scroll = self.preview_scroll.saturating_add(2);
                 TicketWizardEffect::None
             }
             TicketWizardMsg::Up => {
@@ -211,29 +242,36 @@ impl TicketWizardModel {
                 }
                 TicketWizardEffect::None
             }
-            TicketWizardMsg::NextStep | TicketWizardMsg::Enter => {
+            TicketWizardMsg::NextStep => {
                 match self.active_step {
                     0 => {
                         if !self.header.trim().is_empty() {
                             self.active_step = 1;
                         }
-                        TicketWizardEffect::None
                     }
                     1 => {
                         if !self.description.trim().is_empty() {
                             self.active_step = 2;
                         }
-                        TicketWizardEffect::None
                     }
                     2 => {
                         self.load_selected_crash();
-                        self.active_step = 3;
-                        TicketWizardEffect::None
+                        if self.loaded_crash.is_some() {
+                            self.active_step = 3;
+                        } else {
+                            self.preview_scroll = 0;
+                            self.active_step = 4;
+                        }
                     }
-                    3 => self.save_ticket(),
-                    _ => TicketWizardEffect::None,
+                    3 => {
+                        self.preview_scroll = 0;
+                        self.active_step = 4;
+                    }
+                    _ => {}
                 }
+                TicketWizardEffect::None
             }
+            TicketWizardMsg::ConfirmSave => self.save_ticket(),
         }
     }
 
@@ -276,15 +314,19 @@ impl TicketWizardModel {
             .filter_map(|(idx, &selected)| if selected { Some(idx as u32) } else { None })
             .collect();
 
+        let final_description = embed_code_snippets(self.description.as_str());
+
         let ticket = Ticket {
             header: self.header.trim().to_string(),
-            description: self.description.clone(),
+            description: final_description,
             crash_file: crash_path,
             diagnostics: diag_indices,
         };
 
         match ticket.save(None) {
-            Ok(path) => TicketWizardEffect::Saved(path),
+            Ok(path) => {
+                TicketWizardEffect::Saved(path)
+            }
             Err(e) => {
                 self.status = Some(format!("Error saving ticket: {e}"));
                 TicketWizardEffect::None
@@ -295,14 +337,24 @@ impl TicketWizardModel {
     pub(crate) fn view(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
         let layout = WizardLayout::new(area);
 
+        let (display_step, total_steps) = if self.loaded_crash.is_none() {
+            if self.active_step == 4 {
+                (3, 4)
+            } else {
+                (self.active_step, 4)
+            }
+        } else {
+            (self.active_step, 5)
+        };
+
         render_wizard_header(
             frame,
             layout.header_area,
             WizardHeader {
                 badge_label: "TICKET WIZARD",
                 badge_color: theme.ok,
-                active_step: self.active_step,
-                total_steps: 4,
+                active_step: display_step,
+                total_steps,
                 title: " New Ticket ",
             },
             theme,
@@ -318,49 +370,7 @@ impl TicketWizardModel {
                 ])
                 .split(layout.body_area);
 
-            let snippets = SnippetRef::extract_from_text(&self.description);
-            let preview_lines = if let Some(first_ref) = snippets.first() {
-                load_file_snippet(
-                    &first_ref.path,
-                    None,
-                    first_ref.range,
-                    &theme.select_symbol,
-                    theme.ok,
-                    theme.text,
-                    theme.subtext,
-                )
-            } else {
-                vec![
-                    Line::from(vec![
-                        theme.badge("SNIPPET PREVIEW", theme.info, Color::Black),
-                    ]),
-                    Line::from(""),
-                    Line::from(Span::styled("Mention any file in your description to preview it live:", Style::default().fg(theme.text))),
-                    Line::from(""),
-                    Line::from(vec![
-                        Span::styled("  Syntax:  ", Style::default().fg(theme.warn)),
-                        Span::styled("@path/to/file.rs", Style::default().fg(theme.ok).add_modifier(Modifier::BOLD)),
-                    ]),
-                    Line::from(vec![
-                        Span::styled("  Slice:   ", Style::default().fg(theme.warn)),
-                        Span::styled("@path/to/file.rs[10..25]", Style::default().fg(theme.ok).add_modifier(Modifier::BOLD)),
-                    ]),
-                    Line::from(""),
-                    Line::from(Span::styled("Lines are dynamically read and rendered with line numbers.", Style::default().fg(theme.subtext))),
-                ]
-            };
-
-            let preview_title = if let Some(first_ref) = snippets.first() {
-                format!(" Code Preview: {} ", first_ref.path.display())
-            } else {
-                " Live Code Preview ".to_string()
-            };
-
-            let preview_widget = Paragraph::new(preview_lines)
-                .block(theme.block(&preview_title))
-                .wrap(Wrap { trim: false });
-            frame.render_widget(preview_widget, horiz_chunks[1]);
-
+            self.render_step_1_right_panel(frame, horiz_chunks[1], theme);
             horiz_chunks[0]
         } else {
             layout.body_area
@@ -371,6 +381,7 @@ impl TicketWizardModel {
             1 => render_active_text_step(frame, form_area, 1, "Description (supports @file[start..end])", &self.description, theme),
             2 => self.render_crash_step(frame, form_area, theme),
             3 => self.render_diagnostics_step(frame, form_area, theme),
+            4 => self.render_preview_step(frame, form_area, theme),
             _ => {}
         }
 
@@ -381,6 +392,7 @@ impl TicketWizardModel {
             ],
             1 => vec![
                 ("Enter/Tab", "Next Step"),
+                ("Shift+Enter", "Newline"),
                 ("Shift+Tab", "Previous Step"),
                 ("Esc", "Cancel"),
             ],
@@ -394,14 +406,123 @@ impl TicketWizardModel {
                 ("↑/k, ↓/j", "Navigate"),
                 ("Space", "Toggle"),
                 ("a", "Toggle All"),
-                ("Enter", "Submit Ticket"),
+                ("Enter", "Preview Ticket"),
                 ("Shift+Tab", "Previous Step"),
                 ("Esc", "Cancel"),
             ],
+            4 => {
+                let back_hint = if self.loaded_crash.is_none() {
+                    "Back to Crash Select"
+                } else {
+                    "Back to Diagnostics"
+                };
+                vec![
+                    ("Enter", "Confirm"),
+                    ("↑/k, ↓/j", "Scroll Preview"),
+                    ("Shift+Tab", back_hint),
+                    ("Esc", "Cancel"),
+                ]
+            }
             _ => vec![("Esc", "Cancel")],
         };
 
         render_wizard_footer(frame, layout.footer_area, &footer_shortcuts, theme);
+    }
+
+    fn render_step_1_right_panel(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
+        let active_mention = active_mention_query(self.description.as_str(), self.description.cursor);
+
+        if let Some(query_raw) = active_mention {
+            let (path_str, range) = parse_query_path_range(&query_raw);
+            let path = Path::new(path_str);
+
+            if path.is_file() {
+                let preview_lines = load_file_snippet(
+                    path,
+                    None,
+                    range,
+                    &theme.select_symbol,
+                    theme.ok,
+                    theme.text,
+                    theme.subtext,
+                );
+                let title = format!(" Code Snippet: {path_str} ");
+                let widget = Paragraph::new(preview_lines)
+                    .block(theme.block(&title))
+                    .wrap(Wrap { trim: false });
+                frame.render_widget(widget, area);
+            } else {
+                let matches = scan_project_paths(path_str);
+                let title = format!(" Files & Folders (@{path_str}) ");
+                let block = theme.block(&title);
+                let inner = block.inner(area);
+                frame.render_widget(block, area);
+
+                let visible = inner.height as usize;
+                let mut lines = Vec::new();
+                if matches.is_empty() {
+                    lines.push(Line::raw(""));
+                    lines.push(Line::from(Span::styled("  No matching files or directories found.", Style::default().fg(theme.subtext))));
+                } else {
+                    for entry in matches.iter().take(visible) {
+                        if entry.is_dir {
+                            lines.push(Line::from(vec![
+                                Span::styled("  📁 ", Style::default().fg(theme.warn)),
+                                Span::styled(&entry.path, Style::default().add_modifier(Modifier::BOLD)),
+                            ]));
+                        } else {
+                            lines.push(Line::from(vec![
+                                Span::styled("  📄 ", Style::default().fg(theme.info)),
+                                Span::styled(&entry.path, Style::default()),
+                            ]));
+                        }
+                    }
+                }
+                let widget = Paragraph::new(lines);
+                frame.render_widget(widget, inner);
+            }
+        } else {
+            let snippets = SnippetRef::extract_from_text(self.description.as_str());
+            if let Some(first_ref) = snippets.first() {
+                let preview_lines = load_file_snippet(
+                    &first_ref.path,
+                    None,
+                    first_ref.range,
+                    &theme.select_symbol,
+                    theme.ok,
+                    theme.text,
+                    theme.subtext,
+                );
+                let title = format!(" Code Preview: {} ", first_ref.path.display());
+                let widget = Paragraph::new(preview_lines)
+                    .block(theme.block(&title))
+                    .wrap(Wrap { trim: false });
+                frame.render_widget(widget, area);
+            } else {
+                let instructions = vec![
+                    Line::from(vec![
+                        theme.badge("SNIPPET PREVIEW", theme.info, theme.text_invert),
+                    ]),
+                    Line::from(""),
+                    Line::from(Span::styled("Type '@' to autocomplete files & folders:", Style::default().fg(theme.text))),
+                    Line::from(""),
+                    Line::from(vec![
+                        Span::styled("  Syntax:  ", Style::default().fg(theme.warn)),
+                        Span::styled("@path/to/file.rs", Style::default().fg(theme.ok).add_modifier(Modifier::BOLD)),
+                    ]),
+                    Line::from(vec![
+                        Span::styled("  Slice:   ", Style::default().fg(theme.warn)),
+                        Span::styled("@path/to/file.rs[10..25]", Style::default().fg(theme.ok).add_modifier(Modifier::BOLD)),
+                    ]),
+                    Line::from(""),
+                    Line::from(Span::styled("Code blocks will be embedded directly into ticket description.", Style::default().fg(theme.subtext))),
+                ];
+                let widget = Paragraph::new(instructions)
+                    .block(theme.block(" Live Code Preview "))
+                    .wrap(Wrap { trim: false });
+                frame.render_widget(widget, area);
+            }
+        }
     }
 
     fn render_crash_step(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
@@ -469,14 +590,14 @@ impl TicketWizardModel {
             let total = crash.crashes.len();
             let selected_count = self.selected_diagnostics.iter().filter(|&&s| s).count();
             let title = format!(
-                " Step 4: Select Diagnostics ({selected_count}/{total} selected) [Space: Toggle, a: Toggle All, Enter: Save] "
+                " Step 4: Select Diagnostics ({selected_count}/{total} selected) [Space: Toggle, a: Toggle All, Enter: Preview] "
             );
             let block = theme.focused_block(&title);
             let inner = block.inner(area);
             frame.render_widget(block, area);
 
             if crash.crashes.is_empty() {
-                let p = Paragraph::new("Crash file has no recorded diagnostics.\nPress Enter to submit ticket.")
+                let p = Paragraph::new("Crash file has no recorded diagnostics.\nPress Enter to continue to preview.")
                     .alignment(Alignment::Center);
                 frame.render_widget(p, inner);
             } else {
@@ -537,11 +658,316 @@ impl TicketWizardModel {
                 Line::from(vec![
                     Span::styled("Press ", Style::default().fg(theme.text)),
                     Span::styled("Enter", Style::default().fg(theme.ok).add_modifier(Modifier::BOLD)),
-                    Span::styled(" to create and save the ticket.", Style::default().fg(theme.text)),
+                    Span::styled(" to continue to ticket preview.", Style::default().fg(theme.text)),
                 ]),
             ];
             let widget = Paragraph::new(lines).alignment(Alignment::Center);
             frame.render_widget(widget, inner);
         }
+    }
+
+    fn render_preview_step(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
+        let md_text = build_ticket_markdown(
+            self.header.as_str(),
+            self.description.as_str(),
+            self.loaded_crash.as_ref(),
+            &self.selected_diagnostics,
+        );
+
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Min(6),
+                Constraint::Length(3),
+            ])
+            .split(area);
+
+        let preview_title = if self.loaded_crash.is_none() {
+            " Step 4: Ticket Preview (Markdown) "
+        } else {
+            " Step 5: Ticket Preview (Markdown) "
+        };
+        let preview_block = theme.focused_block(preview_title);
+        let preview_inner = preview_block.inner(chunks[0]);
+        frame.render_widget(preview_block, chunks[0]);
+
+        let lines = format_markdown_preview_lines(&md_text, theme);
+        let preview_widget = Paragraph::new(lines)
+            .wrap(Wrap { trim: false })
+            .scroll((self.preview_scroll as u16, 0));
+        frame.render_widget(preview_widget, preview_inner);
+
+        let button_line = Line::from(vec![
+            Span::styled(" [Enter] Confirm ", Style::default().bg(theme.ok).fg(theme.text_invert).add_modifier(Modifier::BOLD)),
+            Span::raw("    "),
+            Span::styled(" [Esc] Cancel ", Style::default().bg(theme.border).fg(theme.text)),
+        ]);
+        let buttons_widget = Paragraph::new(button_line).alignment(Alignment::Center);
+        frame.render_widget(buttons_widget, chunks[1]);
+    }
+}
+
+#[derive(Clone, Debug)]
+struct PathEntry {
+    path: String,
+    is_dir: bool,
+}
+
+fn active_mention_query(text: &str, cursor_chars: usize) -> Option<String> {
+    let byte_idx = text
+        .char_indices()
+        .nth(cursor_chars)
+        .map(|(i, _)| i)
+        .unwrap_or(text.len());
+    let prefix = &text[..byte_idx];
+    if let Some(at_idx) = prefix.rfind('@') {
+        let query = &prefix[at_idx + 1..];
+        if !query.contains(char::is_whitespace) {
+            return Some(query.to_string());
+        }
+    }
+    None
+}
+
+fn parse_query_path_range(query: &str) -> (&str, Option<(usize, usize)>) {
+    let cleaned = query.trim_matches(|c: char| c == ',' || c == ';' || c == ')' || c == '(');
+    if let Some(b_start) = cleaned.find('[')
+        && let Some(b_end) = cleaned.find(']')
+    {
+        let p = &cleaned[..b_start];
+        let r_str = &cleaned[b_start + 1..b_end];
+        let r = if let Some((s_str, e_str)) = r_str.split_once("..") {
+            let s = s_str.trim().parse::<usize>().ok();
+            let e = e_str.trim().parse::<usize>().ok();
+            match (s, e) {
+                (Some(start), Some(end)) => Some((start, end)),
+                (Some(start), None) => Some((start, start + 15)),
+                (None, Some(end)) => Some((1, end)),
+                _ => None,
+            }
+        } else {
+            None
+        };
+        (p, r)
+    } else {
+        (cleaned, None)
+    }
+}
+
+fn scan_project_paths(query: &str) -> Vec<PathEntry> {
+    let q = query.replace('\\', "/").to_lowercase();
+    let walker = WalkDir::new(".")
+        .min_depth(1)
+        .max_depth(6)
+        .into_iter()
+        .filter_entry(|e| {
+            let name = e.file_name().to_string_lossy();
+            !name.starts_with('.') && name != "target" && name != "node_modules"
+        });
+
+    let mut entries = Vec::new();
+    for entry in walker.filter_map(|e| e.ok()) {
+        let p = entry.path();
+        let rel = p.strip_prefix(".").unwrap_or(p);
+        let norm = rel.to_string_lossy().replace('\\', "/");
+        let is_dir = entry.file_type().is_dir();
+        let display = if is_dir {
+            format!("{norm}/")
+        } else {
+            norm
+        };
+        entries.push(PathEntry { path: display, is_dir });
+    }
+
+    if q.is_empty() {
+        entries.sort_by(|a, b| {
+            let a_depth = a.path.matches('/').count();
+            let b_depth = b.path.matches('/').count();
+            a_depth.cmp(&b_depth).then(b.is_dir.cmp(&a.is_dir)).then(a.path.cmp(&b.path))
+        });
+        return entries;
+    }
+
+    let mut prefix_matches = Vec::new();
+    let mut contains_matches = Vec::new();
+
+    for entry in entries {
+        let lower = entry.path.to_lowercase();
+        if lower.starts_with(&q) {
+            prefix_matches.push(entry);
+        } else if lower.contains(&q) {
+            contains_matches.push(entry);
+        }
+    }
+
+    prefix_matches.sort_by(|a, b| b.is_dir.cmp(&a.is_dir).then_with(|| a.path.cmp(&b.path)));
+    contains_matches.sort_by(|a, b| b.is_dir.cmp(&a.is_dir).then_with(|| a.path.cmp(&b.path)));
+
+    prefix_matches.extend(contains_matches);
+    prefix_matches
+}
+
+pub(crate) fn embed_code_snippets(text: &str) -> String {
+    let mut result = Vec::new();
+
+    for line in text.lines() {
+        let mut line_tokens = Vec::new();
+        for word in line.split_whitespace() {
+            if let Some(rest) = word.strip_prefix('@') {
+                let cleaned = rest.trim_matches(|c: char| c == ',' || c == ';' || c == ')' || c == '(');
+                let (path_str, range) = parse_query_path_range(cleaned);
+                let path = Path::new(path_str);
+                if path.is_file()
+                    && let Ok(content) = std::fs::read_to_string(path)
+                {
+                    let all_lines: Vec<&str> = content.lines().collect();
+                    let (s, e) = match range {
+                        Some((start, end)) => {
+                            let s = start.saturating_sub(1).min(all_lines.len());
+                            let e = end.min(all_lines.len());
+                            (s, e.max(s + 1))
+                        }
+                        None => (0, all_lines.len().min(30)),
+                    };
+                    let slice = &all_lines[s..e.min(all_lines.len())];
+                    let code_block = format!("\n```\n{}\n```\n", slice.join("\n"));
+                    line_tokens.push(code_block);
+                    continue;
+                }
+            }
+            line_tokens.push(word.to_string());
+        }
+        result.push(line_tokens.join(" "));
+    }
+
+    result.join("\n").trim().to_string()
+}
+
+pub(crate) fn build_ticket_markdown(
+    title: &str,
+    description: &str,
+    crash: Option<&CrashFile>,
+    selected_diagnostics: &[bool],
+) -> String {
+    let mut md = String::new();
+    md.push_str(&format!("# {}\n\n", title.trim()));
+    md.push_str(&embed_code_snippets(description));
+
+    if let Some(cf) = crash {
+        let mut diag_lines = Vec::new();
+        for (idx, diag) in cf.crashes.iter().enumerate() {
+            if selected_diagnostics.get(idx).copied().unwrap_or(false) {
+                let file_name = diag.file_path.file_name().unwrap_or_default().to_string_lossy();
+                diag_lines.push(format!("- `{}` ({}:{}): {}", diag.error_code, file_name, diag.span.line, diag.message));
+            }
+        }
+        if !diag_lines.is_empty() {
+            md.push_str("\n\n### Diagnostics\n");
+            for line in diag_lines {
+                md.push_str(&line);
+                md.push('\n');
+            }
+        }
+    }
+
+    md
+}
+
+fn format_markdown_preview_lines<'a>(text: &'a str, theme: &Theme) -> Vec<Line<'a>> {
+    let mut lines = Vec::new();
+    let mut in_code_block = false;
+
+    for l in text.lines() {
+        if l.starts_with("```") {
+            in_code_block = !in_code_block;
+            lines.push(Line::from(Span::styled(
+                l,
+                Style::default().fg(theme.subtext),
+            )));
+        } else if in_code_block {
+            lines.push(Line::from(vec![
+                Span::styled("  │ ", Style::default().fg(theme.border)),
+                Span::styled(l, Style::default()),
+            ]));
+        } else if l.starts_with('#') {
+            lines.push(Line::from(Span::styled(
+                l,
+                Style::default().add_modifier(Modifier::BOLD),
+            )));
+        } else {
+            lines.push(Line::from(Span::styled(l, Style::default())));
+        }
+    }
+
+    lines
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_active_mention_query() {
+        assert_eq!(active_mention_query("hello @", 7), Some("".to_string()));
+        assert_eq!(active_mention_query("hello @src/m", 12), Some("src/m".to_string()));
+        assert_eq!(active_mention_query("hello @src/main.rs ", 19), None);
+        assert_eq!(active_mention_query("hello world", 5), None);
+    }
+
+    #[test]
+    fn test_parse_query_path_range() {
+        let (path, range) = parse_query_path_range("src/main.rs[10..20]");
+        assert_eq!(path, "src/main.rs");
+        assert_eq!(range, Some((10, 20)));
+
+        let (path2, range2) = parse_query_path_range("Cargo.toml");
+        assert_eq!(path2, "Cargo.toml");
+        assert_eq!(range2, None);
+    }
+
+    #[test]
+    fn test_embed_code_snippets_no_lang() {
+        let input = "Check this file:\n@Cargo.toml[1..3]\nEnd.";
+        let embedded = embed_code_snippets(input);
+        assert!(!embedded.contains("@Cargo.toml"));
+        assert!(embedded.contains("```\n"));
+        assert!(!embedded.contains("```toml"));
+        assert!(embedded.contains("package"));
+    }
+
+    #[test]
+    fn test_build_ticket_markdown() {
+        let md = build_ticket_markdown("My Title", "Some issue\n@Cargo.toml[1..2]", None, &[]);
+        assert!(md.starts_with("# My Title\n\n"));
+        assert!(!md.contains("### Diagnostics"));
+    }
+
+    #[test]
+    fn test_build_ticket_markdown_with_diagnostics() {
+        use crate::models::crash::{CrashContext, CrashSpan, Diagnostic};
+        use std::path::PathBuf;
+
+        let cf = CrashFile {
+            crashes: vec![Diagnostic {
+                error_code: "E0308".to_string(),
+                message: "mismatched types".to_string(),
+                file_path: PathBuf::from("src/main.rs"),
+                span: CrashSpan { line: 42, column: 10, len: None },
+                trace: vec![],
+            }],
+            context: CrashContext::generate(None),
+        };
+
+        let md_with = build_ticket_markdown("Error Title", "Desc", Some(&cf), &[true]);
+        assert!(md_with.contains("### Diagnostics\n- `E0308` (main.rs:42): mismatched types\n"));
+
+        let md_without = build_ticket_markdown("Error Title", "Desc", Some(&cf), &[false]);
+        assert!(!md_without.contains("### Diagnostics"));
+    }
+
+    #[test]
+    fn test_scan_project_paths() {
+        let paths = scan_project_paths("Cargo.toml");
+        assert!(paths.iter().any(|p| p.path == "Cargo.toml"));
     }
 }

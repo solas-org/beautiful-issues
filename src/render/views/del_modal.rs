@@ -11,16 +11,20 @@ use std::path::PathBuf;
 pub(crate) enum DelModalMsg {
     Confirm,
     Cancel,
+    ScrollUp,
+    ScrollDown,
 }
 
 pub(crate) enum DelModalEffect {
     Confirmed,
     Cancelled,
+    None,
 }
 
 pub(crate) struct DelModalModel {
     pub(crate) files: Vec<PathBuf>,
     pub(crate) title: String,
+    pub(crate) scroll: u16,
 }
 
 impl DelModalModel {
@@ -28,6 +32,7 @@ impl DelModalModel {
         Self {
             files,
             title: title.into(),
+            scroll: 0,
         }
     }
 
@@ -35,9 +40,13 @@ impl DelModalModel {
         match key.code {
             KeyCode::Enter => Some(DelModalMsg::Confirm),
             KeyCode::Esc => Some(DelModalMsg::Cancel),
+            KeyCode::Up => Some(DelModalMsg::ScrollUp),
+            KeyCode::Down => Some(DelModalMsg::ScrollDown),
             KeyCode::Char(c) => match normalize_char(c) {
                 'y' => Some(DelModalMsg::Confirm),
                 'n' => Some(DelModalMsg::Cancel),
+                'k' => Some(DelModalMsg::ScrollUp),
+                'j' => Some(DelModalMsg::ScrollDown),
                 _ => None,
             },
             _ => None,
@@ -53,6 +62,14 @@ impl DelModalModel {
                 DelModalEffect::Confirmed
             }
             DelModalMsg::Cancel => DelModalEffect::Cancelled,
+            DelModalMsg::ScrollUp => {
+                self.scroll = self.scroll.saturating_sub(1);
+                DelModalEffect::None
+            }
+            DelModalMsg::ScrollDown => {
+                self.scroll = self.scroll.saturating_add(1);
+                DelModalEffect::None
+            }
         }
     }
 
@@ -61,7 +78,7 @@ impl DelModalModel {
         let backdrop = Block::default();
         frame.render_widget(backdrop, area);
 
-        let popup_area = centered_rect(90, area);
+        let popup_area = centered_rect(90, 90, area);
         let modal_title = format!(" Confirm Delete: {} ", self.title);
         let modal_block = theme.alert_block(&modal_title);
         let inner = modal_block.inner(popup_area);
@@ -88,21 +105,20 @@ impl DelModalModel {
         let warn_widget = Paragraph::new(vec![Line::raw(""), warn_text]).alignment(Alignment::Center);
         frame.render_widget(warn_widget, chunks[0]);
 
-        let file_items: Vec<ListItem> = self
-            .files
-            .iter()
-            .map(|p| {
-                let name = p.file_name().unwrap_or_default().to_string_lossy();
-                ListItem::new(Line::from(vec![
-                    Span::styled("  ✕ ", Style::default().fg(theme.err).add_modifier(Modifier::BOLD)),
-                    Span::styled(name, Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
-                    Span::styled(format!(" ({})", p.display()), Style::default().fg(theme.subtext)),
-                ]))
-            })
-            .collect();
+        let mut lines = Vec::new();
+        for p in &self.files {
+            let name = p.file_name().unwrap_or_default().to_string_lossy();
+            lines.push(Line::from(vec![
+                Span::styled("  ✕ ", Style::default().fg(theme.err).add_modifier(Modifier::BOLD)),
+                Span::styled(name.to_string(), Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
+                Span::styled(format!(" ({})", p.display()), Style::default().fg(theme.subtext)),
+            ]));
+        }
 
-        let list = List::new(file_items);
-        frame.render_widget(list, chunks[1]);
+        let file_widget = Paragraph::new(lines)
+            .wrap(Wrap { trim: false })
+            .scroll((self.scroll, 0));
+        frame.render_widget(file_widget, chunks[1]);
 
         let button_line = Line::from(vec![
             Span::styled(" [y / Enter] Confirm Delete ", Style::default().bg(theme.err).fg(theme.text_invert).add_modifier(Modifier::BOLD)),

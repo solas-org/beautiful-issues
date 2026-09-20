@@ -27,7 +27,7 @@ impl Ticket {
         let user_config = UserConfig::global();
 
         let now = Utc::now().format("%Y-%m-%d_%H-%M-%S");
-        let prefix = self.header.trim();
+        let prefix = crate::models::sanitize_filename(&self.header);
 
         let path = output.unwrap_or_else(|| {
             find_bissue_dir().join("tickets").join(format!("{prefix}_{now}.ticket"))

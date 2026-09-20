@@ -77,7 +77,7 @@ pub(crate) struct UserConfig {
     pub(crate) text_invert_color: String,
     #[serde(default = "default_subtext_color")]
     pub(crate) subtext_color: String,
-    #[serde(default = "default_accent_color")]
+    #[serde(default = "default_accent_color", alias = "highlight_color")]
     pub(crate) accent_color: String,
     #[serde(default = "default_select_symbol")]
     pub(crate) select_symbol: String,

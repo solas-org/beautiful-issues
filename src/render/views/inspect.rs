@@ -226,7 +226,7 @@ impl InspectModel {
 
         if self.show_trace && !self.crash.crashes.is_empty() {
             let current_diag = &self.crash.crashes[self.selected_index];
-            let popup_area = centered_rect(65, area);
+            let popup_area = centered_rect(70, 65, area);
             frame.render_widget(Clear, popup_area);
 
             let trace_items: Vec<ListItem> = if current_diag.trace.is_empty() {
@@ -256,16 +256,22 @@ impl InspectModel {
     }
 }
 
-pub(crate) fn centered_rect(percent_y: u16, r: Rect) -> Rect {
-    let default = Layout::default()
+pub(crate) fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
+    let popup_layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Percentage((100 - percent_y) / 2),
             Constraint::Percentage(percent_y),
             Constraint::Percentage((100 - percent_y) / 2),
-        ]);
+        ])
+        .split(r);
 
-    let popup_layout = default.split(r);
-
-    default.split(popup_layout[1])[1]
+    Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage((100 - percent_x) / 2),
+            Constraint::Percentage(percent_x),
+            Constraint::Percentage((100 - percent_x) / 2),
+        ])
+        .split(popup_layout[1])[1]
 }

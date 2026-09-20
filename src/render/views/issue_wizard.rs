@@ -2,7 +2,8 @@ use crate::models::issue::{Issue, IssueType};
 use crate::render::keys::normalize_char;
 use crate::render::theme::Theme;
 use crate::render::views::wizard::{
-    render_active_text_step, render_wizard_footer, render_wizard_header, WizardHeader, WizardLayout,
+    render_active_text_step, render_wizard_footer, render_wizard_header, TextInput, WizardHeader,
+    WizardLayout,
 };
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::{Alignment, Spacing};
@@ -11,9 +12,7 @@ use ratatui::widgets::*;
 use std::path::PathBuf;
 
 pub(crate) enum IssueWizardMsg {
-    Char(char),
-    Backspace,
-    Enter,
+    InputChanged,
     NextStep,
     PrevStep,
     SelectType(IssueType),
@@ -31,10 +30,10 @@ pub(crate) enum IssueWizardEffect {
 pub(crate) struct IssueWizardModel {
     pub(crate) active_step: usize,
     pub(crate) issue_type: IssueType,
-    pub(crate) code: String,
-    pub(crate) message: String,
-    pub(crate) note: String,
-    pub(crate) advice: String,
+    pub(crate) code: TextInput,
+    pub(crate) message: TextInput,
+    pub(crate) note: TextInput,
+    pub(crate) advice: TextInput,
     pub(crate) status: Option<String>,
 }
 
@@ -43,11 +42,31 @@ impl IssueWizardModel {
         Self {
             active_step: 0,
             issue_type: IssueType::Error,
-            code: String::new(),
-            message: String::new(),
-            note: String::new(),
-            advice: String::new(),
+            code: TextInput::new_single_line(""),
+            message: TextInput::new_single_line(""),
+            note: TextInput::new_multiline(""),
+            advice: TextInput::new_multiline(""),
             status: None,
+        }
+    }
+
+    fn active_input(&self) -> Option<&TextInput> {
+        match self.active_step {
+            1 => Some(&self.code),
+            2 => Some(&self.message),
+            3 => Some(&self.note),
+            4 => Some(&self.advice),
+            _ => None,
+        }
+    }
+
+    fn active_input_mut(&mut self) -> Option<&mut TextInput> {
+        match self.active_step {
+            1 => Some(&mut self.code),
+            2 => Some(&mut self.message),
+            3 => Some(&mut self.note),
+            4 => Some(&mut self.advice),
+            _ => None,
         }
     }
 
@@ -73,15 +92,16 @@ impl IssueWizardModel {
                 },
                 _ => {}
             }
+        } else if let Some(input) = self.active_input_mut()
+            && input.handle_key(&key)
+        {
+            return Some(IssueWizardMsg::InputChanged);
         }
 
         match key.code {
             KeyCode::Esc => Some(IssueWizardMsg::Quit),
-            KeyCode::Tab => Some(IssueWizardMsg::NextStep),
+            KeyCode::Tab | KeyCode::Enter => Some(IssueWizardMsg::NextStep),
             KeyCode::BackTab => Some(IssueWizardMsg::PrevStep),
-            KeyCode::Enter => Some(IssueWizardMsg::Enter),
-            KeyCode::Backspace => Some(IssueWizardMsg::Backspace),
-            KeyCode::Char(c) => Some(IssueWizardMsg::Char(c)),
             _ => None,
         }
     }
@@ -89,6 +109,7 @@ impl IssueWizardModel {
     pub(crate) fn update(&mut self, msg: IssueWizardMsg) -> IssueWizardEffect {
         match msg {
             IssueWizardMsg::Quit => IssueWizardEffect::Quit,
+            IssueWizardMsg::InputChanged => IssueWizardEffect::None,
             IssueWizardMsg::SelectType(t) => {
                 self.issue_type = t;
                 IssueWizardEffect::None
@@ -109,31 +130,11 @@ impl IssueWizardModel {
                 };
                 IssueWizardEffect::None
             }
-            IssueWizardMsg::Char(c) => {
-                match self.active_step {
-                    1 => self.code.push(c),
-                    2 => self.message.push(c),
-                    3 => self.note.push(c),
-                    4 => self.advice.push(c),
-                    _ => {}
-                }
-                IssueWizardEffect::None
-            }
-            IssueWizardMsg::Backspace => {
-                match self.active_step {
-                    1 => { self.code.pop(); }
-                    2 => { self.message.pop(); }
-                    3 => { self.note.pop(); }
-                    4 => { self.advice.pop(); }
-                    _ => {}
-                }
-                IssueWizardEffect::None
-            }
             IssueWizardMsg::PrevStep => {
                 self.active_step = self.active_step.saturating_sub(1);
                 IssueWizardEffect::None
             }
-            IssueWizardMsg::NextStep | IssueWizardMsg::Enter => {
+            IssueWizardMsg::NextStep => {
                 match self.active_step {
                     0 => {
                         self.active_step = 1;
@@ -233,12 +234,20 @@ impl IssueWizardModel {
             _ => {}
         }
 
-        let footer_shortcuts = [
-            ("Enter/Tab", if self.active_step == 4 { "Save Issue" } else { "Next Step" }),
-            ("Shift+Tab", "Previous Step"),
-            ("1/2/3 or ←/→", "Change Type (Step 1)"),
-            ("Esc", "Cancel"),
-        ];
+        let mut footer_shortcuts = Vec::new();
+        footer_shortcuts.push(("Enter/Tab", if self.active_step == 4 { "Save Issue" } else { "Next Step" }));
+        if let Some(input) = self.active_input()
+            && input.multiline
+        {
+            footer_shortcuts.push(("Shift+Enter", "Newline"));
+        }
+        if self.active_step > 0 {
+            footer_shortcuts.push(("Shift+Tab", "Previous Step"));
+        }
+        if self.active_step == 0 {
+            footer_shortcuts.push(("1/2/3 or ←/→", "Change Type"));
+        }
+        footer_shortcuts.push(("Esc", "Cancel"));
         render_wizard_footer(frame, layout.footer_area, &footer_shortcuts, theme);
     }
 
@@ -285,8 +294,7 @@ impl IssueWizardModel {
             IssueType::Fatal => theme.badge("FATAL", theme.accent, theme.text_invert),
         };
 
-        let code_str = if self.code.is_empty() { "ERR_CODE" } else { &self.code };
-        let msg_str = if self.message.is_empty() { "(Issue message preview will appear here)" } else { &self.message };
+        let code_str = if self.code.is_empty() { "ERR_CODE" } else { self.code.as_str() };
 
         let mut preview_lines = vec![
             Line::from(vec![
@@ -296,19 +304,30 @@ impl IssueWizardModel {
             ]),
             Line::from(""),
             Line::from(Span::styled("Message / Explanation:", Style::default().fg(theme.subtext))),
-            Line::from(Span::styled(msg_str, Style::default().fg(theme.text))),
-            Line::from(""),
         ];
+
+        if self.message.is_empty() {
+            preview_lines.push(Line::from(Span::styled("(Issue message preview will appear here)", Style::default().fg(theme.subtext))));
+        } else {
+            for line in self.message.as_str().split('\n') {
+                preview_lines.push(Line::from(Span::styled(line, Style::default().fg(theme.text))));
+            }
+        }
+        preview_lines.push(Line::from(""));
 
         if !self.note.is_empty() {
             preview_lines.push(Line::from(Span::styled("Additional Note / Context:", Style::default().fg(theme.warn).add_modifier(Modifier::BOLD))));
-            preview_lines.push(Line::from(Span::styled(&self.note, Style::default().fg(theme.text))));
+            for line in self.note.as_str().split('\n') {
+                preview_lines.push(Line::from(Span::styled(line, Style::default().fg(theme.text))));
+            }
             preview_lines.push(Line::from(""));
         }
 
         if !self.advice.is_empty() {
             preview_lines.push(Line::from(Span::styled("Suggested Advice / Fix:", Style::default().fg(theme.ok).add_modifier(Modifier::BOLD))));
-            preview_lines.push(Line::from(Span::styled(&self.advice, Style::default().fg(theme.text))));
+            for line in self.advice.as_str().split('\n') {
+                preview_lines.push(Line::from(Span::styled(line, Style::default().fg(theme.text))));
+            }
             preview_lines.push(Line::from(""));
         }
 

@@ -79,6 +79,7 @@ impl App {
                                 self.running = false;
                             }
                         }
+                        DelModalEffect::None => {}
                     }
                 }
             }
