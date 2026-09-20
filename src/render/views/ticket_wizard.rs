@@ -446,8 +446,8 @@ impl TicketWizardModel {
 
                     vec![
                         sym,
-                        Span::styled(format!("{:<36} ", name), Style::default().add_modifier(Modifier::BOLD)),
-                        Span::styled(format!("{:>8}  ", size), Style::default().bg(theme.info).fg(theme.text_invert)),
+                        Span::styled(format!("{:<35} ", name), Style::default().add_modifier(Modifier::BOLD)),
+                        Span::styled(format!("{:<10}  ", size), Style::default()),
                         Span::styled(modified, Style::default()),
                     ]
                 }
@@ -510,8 +510,8 @@ impl TicketWizardModel {
                     let line_spans = vec![
                         cursor_span,
                         check_span,
-                        Span::styled(format!("{:<10} ", diag.error_code), Style::default().bg(theme.err).fg(theme.text_invert).add_modifier(Modifier::BOLD)),
-                        Span::styled(format!("{file_name}:{} ", diag.span.line), Style::default().bg(theme.info).fg(theme.text_invert)),
+                        Span::styled(format!("{:<20} ", diag.error_code), Style::default().add_modifier(Modifier::BOLD)),
+                        Span::styled(format!("{file_name}:{:<10} ", diag.span.line), Style::default()),
                         Span::styled(&diag.message, Style::default()),
                     ];
 

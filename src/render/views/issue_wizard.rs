@@ -250,7 +250,7 @@ impl IssueWizardModel {
         let sym = &theme.select_symbol;
         let make_btn = |label: &str, matches: bool, bg: Color| -> Span {
             if matches {
-                Span::styled(format!("  {sym} [ {label} ]  "), Style::default().bg(bg).fg(Color::Black).add_modifier(Modifier::BOLD))
+                Span::styled(format!("  {sym} [ {label} ]  "), Style::default().bg(bg).fg(theme.text_invert).add_modifier(Modifier::BOLD))
             } else {
                 let spaces = " ".repeat(sym.chars().count() + 2);
                 Span::styled(format!("{spaces}[ {label} ]  "), Style::default().fg(theme.subtext))
@@ -260,7 +260,7 @@ impl IssueWizardModel {
         let line = Line::from(vec![
             make_btn("1. Error", matches!(self.issue_type, IssueType::Error), theme.err),
             make_btn("2. Warning", matches!(self.issue_type, IssueType::Warning), theme.warn),
-            make_btn("3. Fatal", matches!(self.issue_type, IssueType::Fatal), Color::Magenta),
+            make_btn("3. Fatal", matches!(self.issue_type, IssueType::Fatal), theme.accent),
         ]);
 
         let pad_lines = (inner.height.saturating_sub(1)) / 2;
@@ -280,9 +280,9 @@ impl IssueWizardModel {
         frame.render_widget(block, area);
 
         let type_badge = match self.issue_type {
-            IssueType::Error => theme.badge("ERROR", theme.err, Color::White),
-            IssueType::Warning => theme.badge("WARNING", theme.warn, Color::Black),
-            IssueType::Fatal => theme.badge("FATAL", Color::Red, Color::White),
+            IssueType::Error => theme.badge("ERROR", theme.err, theme.text_invert),
+            IssueType::Warning => theme.badge("WARNING", theme.warn, theme.text_invert),
+            IssueType::Fatal => theme.badge("FATAL", theme.accent, theme.text_invert),
         };
 
         let code_str = if self.code.is_empty() { "ERR_CODE" } else { &self.code };

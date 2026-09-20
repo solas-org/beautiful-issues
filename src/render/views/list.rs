@@ -245,19 +245,19 @@ impl ListModel {
                     let canon = dunce::canonicalize(path).unwrap_or_else(|_| path.clone());
                     if self.lock.pushed.contains(&canon) {
                         Cell::from(Line::from(vec![
-                            theme.badge("PUSHED", theme.ok, Color::Black),
+                            theme.badge("PUSHED", theme.ok, theme.text_invert),
                         ]))
                     } else {
                         Cell::from(Line::from(vec![
-                            theme.badge("LOCAL", theme.warn, Color::Black),
+                            theme.badge("LOCAL", theme.warn, theme.text_invert),
                         ]))
                     }
                 }
                 ListTab::Crashes => Cell::from(Line::from(vec![
-                    theme.badge("CRASH", theme.err, Color::White),
+                    theme.badge("CRASH", theme.err, theme.text_invert),
                 ])),
                 ListTab::Issues => Cell::from(Line::from(vec![
-                    theme.badge("ISSUE", theme.info, Color::Black),
+                    theme.badge("ISSUE", theme.info, theme.text_invert),
                 ])),
             };
 
@@ -300,7 +300,7 @@ impl ListModel {
 
         if let Some(ref msg) = self.status_message {
             let status = Paragraph::new(Line::from(vec![
-                theme.badge("STATUS", theme.info, Color::Black),
+                theme.badge("STATUS", theme.info, theme.text_invert),
                 Span::raw(" "),
                 Span::styled(msg, Style::default().fg(theme.text)),
             ])).alignment(Alignment::Center);

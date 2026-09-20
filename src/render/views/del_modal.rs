@@ -37,7 +37,7 @@ impl DelModalModel {
             KeyCode::Esc => Some(DelModalMsg::Cancel),
             KeyCode::Char(c) => match normalize_char(c) {
                 'y' => Some(DelModalMsg::Confirm),
-                'n' | 'q' => Some(DelModalMsg::Cancel),
+                'n' => Some(DelModalMsg::Cancel),
                 _ => None,
             },
             _ => None,
@@ -61,7 +61,7 @@ impl DelModalModel {
         let backdrop = Block::default();
         frame.render_widget(backdrop, area);
 
-        let popup_area = centered_rect(55, area);
+        let popup_area = centered_rect(90, area);
         let modal_title = format!(" Confirm Delete: {} ", self.title);
         let modal_block = theme.alert_block(&modal_title);
         let inner = modal_block.inner(popup_area);
@@ -71,14 +71,14 @@ impl DelModalModel {
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(3),
-                Constraint::Min(4),
+                Constraint::Min(2),
                 Constraint::Length(2),
             ])
             .split(inner);
 
         let count = self.files.len();
         let warn_text = Line::from(vec![
-            theme.badge("DANGER", theme.err, Color::White),
+            theme.badge("DANGER", theme.err, theme.text_invert),
             Span::raw(" "),
             Span::styled(
                 format!("Permanently delete {count} file(s)? This cannot be undone."),
@@ -105,7 +105,7 @@ impl DelModalModel {
         frame.render_widget(list, chunks[1]);
 
         let button_line = Line::from(vec![
-            Span::styled(" [y / Enter] Confirm Delete ", Style::default().bg(theme.err).fg(Color::White).add_modifier(Modifier::BOLD)),
+            Span::styled(" [y / Enter] Confirm Delete ", Style::default().bg(theme.err).fg(theme.text_invert).add_modifier(Modifier::BOLD)),
             Span::raw("    "),
             Span::styled(" [n / Esc] Cancel ", Style::default().bg(theme.border).fg(theme.text)),
         ]);
