@@ -1,10 +1,7 @@
 use crate::commands::enums::DelTarget;
 use crate::commands::list::paths_by_extension;
 use std::path::Path;
-use owo_colors::OwoColorize;
-use crate::configs::UserConfig;
-use crate::render::styling::parse_hex;
-use anyhow::{bail, Context, Result};
+use anyhow::{Result};
 
 use crate::render::app::{run_tui_app, App, AppScreen};
 use crate::render::theme::Theme;

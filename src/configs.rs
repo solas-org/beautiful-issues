@@ -50,20 +50,24 @@ impl DevConfig {
     }
 }
 
-fn default_warn_color() -> String { "#f5a742".to_string() }
-fn default_info_color() -> String { "#429bf5".to_string() }
-fn default_border_color() -> String { "#444444".to_string() }
-fn default_text_color() -> String { "#f0f0f0".to_string() }
-fn default_text_invert_color() -> String { "#ffffff".to_string() }
-fn default_subtext_color() -> String { "#888888".to_string() }
-fn default_accent_color() -> String { "#264f78".to_string() }
+fn default_ok_color() -> String { "#a6e3a1".to_string() }
+fn default_err_color() -> String { "#f38ba8".to_string() }
+fn default_warn_color() -> String { "#f9e2af".to_string() }
+fn default_info_color() -> String { "#89a0e0".to_string() }
+fn default_border_color() -> String { "#637296".to_string() }
+fn default_text_color() -> String { "#cdd6f4".to_string() }
+fn default_text_invert_color() -> String { "#000000".to_string() }
+fn default_subtext_color() -> String { "#a6adc8".to_string() }
+fn default_accent_color() -> String { "#d7b5ff".to_string() }
 fn default_select_symbol() -> String { "››".to_string() }
 fn default_choose_symbol() -> String { "✓".to_string() }
 
 #[derive(Serialize, Deserialize, Clone)]
 pub(crate) struct UserConfig {
     pub(crate) remotes: Vec<String>,
+    #[serde(default = "default_ok_color")]
     pub(crate) ok_color: String,
+    #[serde(default = "default_err_color")]
     pub(crate) err_color: String,
     #[serde(default = "default_warn_color")]
     pub(crate) warn_color: String,
@@ -89,8 +93,8 @@ impl Default for UserConfig {
     fn default() -> Self {
         Self {
             remotes: Vec::new(),
-            ok_color: "#42f5b6".to_string(),
-            err_color: "#f54266".to_string(),
+            ok_color: default_ok_color(),
+            err_color: default_err_color(),
             warn_color: default_warn_color(),
             info_color: default_info_color(),
             border_color: default_border_color(),
