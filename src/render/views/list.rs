@@ -5,7 +5,6 @@ use crate::configs::find_bissue_dir;
 use crate::lock::Lock;
 use crate::render::keys::normalize_char;
 use crate::render::theme::Theme;
-use chrono::{DateTime, Utc};
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Alignment, Flex, Spacing};
 use ratatui::prelude::*;
@@ -14,6 +13,7 @@ use std::fs::metadata;
 use std::path::PathBuf;
 use std::process::Command;
 use tokio::runtime::Runtime;
+use crate::render::views::helpers::time;
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub(crate) enum ListTab {
@@ -232,13 +232,7 @@ impl ListModel {
             let name = path.file_name().unwrap_or_default().to_string_lossy();
             let meta = metadata(path).ok();
             let size = meta.as_ref().map(|m| format!("{} B", m.len())).unwrap_or_default();
-            let modified = meta
-                .and_then(|m| m.modified().ok())
-                .map(|t| {
-                    let dt: DateTime<Utc> = t.into();
-                    dt.format("%Y-%m-%d %H:%M").to_string()
-                })
-                .unwrap_or_else(|| "-".to_string());
+            let modified = time(meta.as_ref());
 
             let status_cell = match self.current_tab {
                 ListTab::Tickets => {

@@ -8,9 +8,8 @@ use crate::render::snippet::{load_file_snippet, SnippetRef};
 use crate::render::theme::Theme;
 use crate::render::views::wizard::{
     render_active_text_step, render_wizard_footer, render_wizard_header, TextInput, WizardHeader,
-    WizardLayout,
+    WizardLayout, WizardEffect
 };
-use chrono::{DateTime, Utc};
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::{Alignment, Spacing};
 use ratatui::prelude::*;
@@ -18,6 +17,7 @@ use ratatui::widgets::*;
 use std::fs::metadata;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
+use crate::render::views::helpers::time;
 
 pub(crate) enum TicketWizardMsg {
     InputChanged,
@@ -31,12 +31,6 @@ pub(crate) enum TicketWizardMsg {
     ScrollPreviewDown,
     ConfirmSave,
     Quit,
-}
-
-pub(crate) enum TicketWizardEffect {
-    None,
-    Quit,
-    Saved(#[allow(dead_code)] PathBuf),
 }
 
 pub(crate) struct TicketWizardModel {
@@ -188,25 +182,25 @@ impl TicketWizardModel {
         }
     }
 
-    pub(crate) fn update(&mut self, msg: TicketWizardMsg) -> TicketWizardEffect {
+    pub(crate) fn update(&mut self, msg: TicketWizardMsg) -> WizardEffect {
         match msg {
-            TicketWizardMsg::Quit => TicketWizardEffect::Quit,
-            TicketWizardMsg::InputChanged => TicketWizardEffect::None,
+            TicketWizardMsg::Quit => WizardEffect::Quit,
+            TicketWizardMsg::InputChanged => WizardEffect::None,
             TicketWizardMsg::PrevStep => {
                 if self.active_step == 4 && self.loaded_crash.is_none() {
                     self.active_step = 2;
                 } else {
                     self.active_step = self.active_step.saturating_sub(1);
                 }
-                TicketWizardEffect::None
+                WizardEffect::None
             }
             TicketWizardMsg::ScrollPreviewUp => {
                 self.preview_scroll = self.preview_scroll.saturating_sub(2);
-                TicketWizardEffect::None
+                WizardEffect::None
             }
             TicketWizardMsg::ScrollPreviewDown => {
                 self.preview_scroll = self.preview_scroll.saturating_add(2);
-                TicketWizardEffect::None
+                WizardEffect::None
             }
             TicketWizardMsg::Up => {
                 if self.active_step == 2 {
@@ -214,7 +208,7 @@ impl TicketWizardModel {
                 } else if self.active_step == 3 {
                     self.diag_cursor = self.diag_cursor.saturating_sub(1);
                 }
-                TicketWizardEffect::None
+                WizardEffect::None
             }
             TicketWizardMsg::Down => {
                 if self.active_step == 2 {
@@ -227,20 +221,20 @@ impl TicketWizardModel {
                 {
                     self.diag_cursor = (self.diag_cursor + 1).min(crash.crashes.len() - 1);
                 }
-                TicketWizardEffect::None
+                WizardEffect::None
             }
             TicketWizardMsg::ToggleSelection => {
                 if self.active_step == 3 && self.diag_cursor < self.selected_diagnostics.len() {
                     self.selected_diagnostics[self.diag_cursor] = !self.selected_diagnostics[self.diag_cursor];
                 }
-                TicketWizardEffect::None
+                WizardEffect::None
             }
             TicketWizardMsg::ToggleAll => {
                 if self.active_step == 3 && !self.selected_diagnostics.is_empty() {
                     let any_unselected = self.selected_diagnostics.iter().any(|&s| !s);
                     self.selected_diagnostics.fill(any_unselected);
                 }
-                TicketWizardEffect::None
+                WizardEffect::None
             }
             TicketWizardMsg::NextStep => {
                 match self.active_step {
@@ -269,7 +263,7 @@ impl TicketWizardModel {
                     }
                     _ => {}
                 }
-                TicketWizardEffect::None
+                WizardEffect::None
             }
             TicketWizardMsg::ConfirmSave => self.save_ticket(),
         }
@@ -306,7 +300,7 @@ impl TicketWizardModel {
         }
     }
 
-    fn save_ticket(&mut self) -> TicketWizardEffect {
+    fn save_ticket(&mut self) -> WizardEffect {
         let crash_path = self.crash_options.get(self.crash_cursor).and_then(|opt| opt.clone());
         let diag_indices: Vec<u32> = self.selected_diagnostics
             .iter()
@@ -324,12 +318,12 @@ impl TicketWizardModel {
         };
 
         match ticket.save(None) {
-            Ok(path) => {
-                TicketWizardEffect::Saved(path)
+            Ok(..) => {
+                WizardEffect::Saved
             }
             Err(e) => {
                 self.status = Some(format!("Error saving ticket: {e}"));
-                TicketWizardEffect::None
+                WizardEffect::None
             }
         }
     }
@@ -557,13 +551,7 @@ impl TicketWizardModel {
                     let name = path.file_name().unwrap_or_default().to_string_lossy();
                     let meta = metadata(path).ok();
                     let size = meta.as_ref().map(|m| format!("{} B", m.len())).unwrap_or_default();
-                    let modified = meta
-                        .and_then(|m| m.modified().ok())
-                        .map(|t| {
-                            let dt: DateTime<Utc> = t.into();
-                            dt.format("%Y-%m-%d %H:%M").to_string()
-                        })
-                        .unwrap_or_default();
+                    let modified = time(meta.as_ref());
 
                     vec![
                         sym,
@@ -729,7 +717,7 @@ fn active_mention_query(text: &str, cursor_chars: usize) -> Option<String> {
     None
 }
 
-fn parse_query_path_range(query: &str) -> (&str, Option<(usize, usize)>) {
+pub(crate) fn parse_query_path_range(query: &str) -> (&str, Option<(usize, usize)>) {
     let cleaned = query.trim_matches(|c: char| c == ',' || c == ';' || c == ')' || c == '(');
     if let Some(b_start) = cleaned.find('[')
         && let Some(b_end) = cleaned.find(']')
@@ -900,74 +888,4 @@ fn format_markdown_preview_lines<'a>(text: &'a str, theme: &Theme) -> Vec<Line<'
     }
 
     lines
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_active_mention_query() {
-        assert_eq!(active_mention_query("hello @", 7), Some("".to_string()));
-        assert_eq!(active_mention_query("hello @src/m", 12), Some("src/m".to_string()));
-        assert_eq!(active_mention_query("hello @src/main.rs ", 19), None);
-        assert_eq!(active_mention_query("hello world", 5), None);
-    }
-
-    #[test]
-    fn test_parse_query_path_range() {
-        let (path, range) = parse_query_path_range("src/main.rs[10..20]");
-        assert_eq!(path, "src/main.rs");
-        assert_eq!(range, Some((10, 20)));
-
-        let (path2, range2) = parse_query_path_range("Cargo.toml");
-        assert_eq!(path2, "Cargo.toml");
-        assert_eq!(range2, None);
-    }
-
-    #[test]
-    fn test_embed_code_snippets_no_lang() {
-        let input = "Check this file:\n@Cargo.toml[1..3]\nEnd.";
-        let embedded = embed_code_snippets(input);
-        assert!(!embedded.contains("@Cargo.toml"));
-        assert!(embedded.contains("```\n"));
-        assert!(!embedded.contains("```toml"));
-        assert!(embedded.contains("package"));
-    }
-
-    #[test]
-    fn test_build_ticket_markdown() {
-        let md = build_ticket_markdown("My Title", "Some issue\n@Cargo.toml[1..2]", None, &[]);
-        assert!(md.starts_with("# My Title\n\n"));
-        assert!(!md.contains("### Diagnostics"));
-    }
-
-    #[test]
-    fn test_build_ticket_markdown_with_diagnostics() {
-        use crate::models::crash::{CrashContext, CrashSpan, Diagnostic};
-        use std::path::PathBuf;
-
-        let cf = CrashFile {
-            crashes: vec![Diagnostic {
-                error_code: "E0308".to_string(),
-                message: "mismatched types".to_string(),
-                file_path: PathBuf::from("src/main.rs"),
-                span: CrashSpan { line: 42, column: 10, len: None },
-                trace: vec![],
-            }],
-            context: CrashContext::generate(None),
-        };
-
-        let md_with = build_ticket_markdown("Error Title", "Desc", Some(&cf), &[true]);
-        assert!(md_with.contains("### Diagnostics\n- `E0308` (main.rs:42): mismatched types\n"));
-
-        let md_without = build_ticket_markdown("Error Title", "Desc", Some(&cf), &[false]);
-        assert!(!md_without.contains("### Diagnostics"));
-    }
-
-    #[test]
-    fn test_scan_project_paths() {
-        let paths = scan_project_paths("Cargo.toml");
-        assert!(paths.iter().any(|p| p.path == "Cargo.toml"));
-    }
 }

@@ -3,13 +3,12 @@ use crate::render::keys::normalize_char;
 use crate::render::theme::Theme;
 use crate::render::views::wizard::{
     render_active_text_step, render_wizard_footer, render_wizard_header, TextInput, WizardHeader,
-    WizardLayout,
+    WizardLayout, WizardEffect
 };
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::{Alignment, Spacing};
 use ratatui::prelude::*;
 use ratatui::widgets::*;
-use std::path::PathBuf;
 
 pub(crate) enum IssueWizardMsg {
     InputChanged,
@@ -19,12 +18,6 @@ pub(crate) enum IssueWizardMsg {
     NextType,
     PrevType,
     Quit,
-}
-
-pub(crate) enum IssueWizardEffect {
-    None,
-    Quit,
-    Saved(#[allow(dead_code)] PathBuf),
 }
 
 pub(crate) struct IssueWizardModel {
@@ -106,13 +99,13 @@ impl IssueWizardModel {
         }
     }
 
-    pub(crate) fn update(&mut self, msg: IssueWizardMsg) -> IssueWizardEffect {
+    pub(crate) fn update(&mut self, msg: IssueWizardMsg) -> WizardEffect {
         match msg {
-            IssueWizardMsg::Quit => IssueWizardEffect::Quit,
-            IssueWizardMsg::InputChanged => IssueWizardEffect::None,
+            IssueWizardMsg::Quit => WizardEffect::Quit,
+            IssueWizardMsg::InputChanged => WizardEffect::None,
             IssueWizardMsg::SelectType(t) => {
                 self.issue_type = t;
-                IssueWizardEffect::None
+                WizardEffect::None
             }
             IssueWizardMsg::NextType => {
                 self.issue_type = match self.issue_type {
@@ -120,7 +113,7 @@ impl IssueWizardModel {
                     IssueType::Warning => IssueType::Fatal,
                     IssueType::Fatal => IssueType::Error,
                 };
-                IssueWizardEffect::None
+                WizardEffect::None
             }
             IssueWizardMsg::PrevType => {
                 self.issue_type = match self.issue_type {
@@ -128,42 +121,42 @@ impl IssueWizardModel {
                     IssueType::Warning => IssueType::Error,
                     IssueType::Fatal => IssueType::Warning,
                 };
-                IssueWizardEffect::None
+                WizardEffect::None
             }
             IssueWizardMsg::PrevStep => {
                 self.active_step = self.active_step.saturating_sub(1);
-                IssueWizardEffect::None
+                WizardEffect::None
             }
             IssueWizardMsg::NextStep => {
                 match self.active_step {
                     0 => {
                         self.active_step = 1;
-                        IssueWizardEffect::None
+                        WizardEffect::None
                     }
                     1 => {
                         if !self.code.trim().is_empty() {
                             self.active_step = 2;
                         }
-                        IssueWizardEffect::None
+                        WizardEffect::None
                     }
                     2 => {
                         if !self.message.trim().is_empty() {
                             self.active_step = 3;
                         }
-                        IssueWizardEffect::None
+                        WizardEffect::None
                     }
                     3 => {
                         self.active_step = 4;
-                        IssueWizardEffect::None
+                        WizardEffect::None
                     }
                     4 => self.save_issue(),
-                    _ => IssueWizardEffect::None,
+                    _ => WizardEffect::None,
                 }
             }
         }
     }
 
-    fn save_issue(&mut self) -> IssueWizardEffect {
+    fn save_issue(&mut self) -> WizardEffect {
         let note_opt = if !self.note.trim().is_empty() {
             Some(self.note.trim().to_string())
         } else {
@@ -185,10 +178,10 @@ impl IssueWizardModel {
         );
 
         match issue.save(None) {
-            Ok(path) => IssueWizardEffect::Saved(path),
+            Ok(..) => WizardEffect::Saved,
             Err(e) => {
                 self.status = Some(format!("Error saving issue: {e}"));
-                IssueWizardEffect::None
+                WizardEffect::None
             }
         }
     }

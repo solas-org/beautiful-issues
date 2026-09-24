@@ -10,6 +10,7 @@ use ratatui::prelude::*;
 use ratatui::widgets::*;
 use std::fs::read;
 use std::path::{Path, PathBuf};
+use crate::render::views::helpers::{split_len_layout, split_min_layout};
 
 pub(crate) enum InspectMsg {
     NextDiagnostic,
@@ -107,22 +108,8 @@ impl InspectModel {
     }
 
     pub(crate) fn view(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
-        let main_vert = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Min(10),
-                Constraint::Length(3),
-            ])
-            .split(area);
-
-        let chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .spacing(Spacing::Overlap(1))
-            .constraints([
-                Constraint::Length(3),
-                Constraint::Min(7),
-            ])
-            .split(main_vert[0]);
+        let main_vert = split_min_layout(Direction::Vertical, 1, 10, area);
+        let chunks = split_len_layout(Direction::Vertical, 3, 7, main_vert[0]);
 
         let diag_count = self.crash.crashes.len();
         let current_diag_num = if diag_count > 0 { self.selected_index + 1 } else { 0 };
@@ -131,11 +118,11 @@ impl InspectModel {
 
         let issue_str = format!("ISSUE {current_diag_num}/{diag_count}");
         let header_text = Line::from(vec![
-            theme.badge(&issue_str, theme.warn, Color::Black),
+            theme.badge(&issue_str, theme.warn, theme.text_invert),
             Span::raw("  "),
-            theme.badge(&self.crash.context.os, theme.info, Color::Black),
+            theme.badge(&self.crash.context.os, theme.info, theme.text_invert),
             Span::raw("  "),
-            theme.badge(&self.crash.context.target_framework, theme.ok, Color::Black),
+            theme.badge(&self.crash.context.target_framework, theme.ok, theme.text_invert),
         ]);
         let header_block = Paragraph::new(header_text)
             .alignment(Alignment::Center)
@@ -178,7 +165,7 @@ impl InspectModel {
 
             let detail_lines = vec![
                 Line::from(vec![
-                    theme.badge(&current_diag.error_code, theme.warn, Color::Black),
+                    theme.badge(&current_diag.error_code, theme.warn, theme.text_invert),
                     Span::raw(" "),
                     Span::styled(
                         format!("{}:{}", current_diag.span.line, current_diag.span.column),
@@ -257,21 +244,16 @@ impl InspectModel {
 }
 
 pub(crate) fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
-    let popup_layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Percentage((100 - percent_y) / 2),
-            Constraint::Percentage(percent_y),
-            Constraint::Percentage((100 - percent_y) / 2),
-        ])
-        .split(r);
-
-    Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage((100 - percent_x) / 2),
-            Constraint::Percentage(percent_x),
-            Constraint::Percentage((100 - percent_x) / 2),
-        ])
-        .split(popup_layout[1])[1]
+    let create_layout = |direction: Direction, percent: u16| {
+        Layout::default()
+            .direction(direction)
+            .constraints([
+                Constraint::Percentage((100 - percent) / 2),
+                Constraint::Percentage(percent),
+                Constraint::Percentage((100 - percent) / 2),
+            ])
+    };
+    
+    let popup_layout = create_layout(Direction::Vertical, percent_y).split(r);
+    create_layout(Direction::Horizontal, percent_x).split(popup_layout[1])[1]
 }

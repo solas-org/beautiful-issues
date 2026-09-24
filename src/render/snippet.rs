@@ -2,6 +2,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use std::fs;
 use std::path::{Path, PathBuf};
+use crate::render::views::ticket_wizard::parse_query_path_range;
 
 #[derive(Clone, Debug)]
 pub(crate) struct SnippetRef {
@@ -14,40 +15,11 @@ impl SnippetRef {
         let mut results = Vec::new();
         for word in text.split_whitespace() {
             if let Some(rest) = word.strip_prefix('@') {
-                let cleaned = rest.trim_matches(|c: char| c == ',' || c == ';' || c == ')' || c == '(');
-                if cleaned.is_empty() {
-                    continue;
-                }
-
-                if let Some(bracket_start) = cleaned.find('[')
-                    && let Some(bracket_end) = cleaned.find(']')
-                {
-                    let path_str = &cleaned[..bracket_start];
-                    let range_str = &cleaned[bracket_start + 1..bracket_end];
-
-                    let range = if let Some((s_str, e_str)) = range_str.split_once("..") {
-                        let start = s_str.trim().parse::<usize>().ok();
-                        let end = e_str.trim().parse::<usize>().ok();
-                        match (start, end) {
-                            (Some(s), Some(e)) => Some((s, e)),
-                            (Some(s), None) => Some((s, s + 15)),
-                            (None, Some(e)) => Some((1, e)),
-                            _ => None,
-                        }
-                    } else {
-                        None
-                    };
-
-                    results.push(SnippetRef {
-                        path: PathBuf::from(path_str),
-                        range,
-                    });
-                    continue;
-                }
+                let (p, r) = parse_query_path_range(rest);
 
                 results.push(SnippetRef {
-                    path: PathBuf::from(cleaned),
-                    range: None,
+                    path: PathBuf::from(p),
+                    range: r,
                 });
             }
         }
