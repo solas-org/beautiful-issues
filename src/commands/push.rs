@@ -109,7 +109,14 @@ pub(crate) async fn push(target: &PushTarget, remote_type: &PushRemote, custom_r
     let client = reqwest::Client::new();
     let mut divider = "";
     for remote in remotes {
-        let host = remote.host_str().expect("Invalid url: no host.");
+        let host = match remote.host_str() {
+            Some(h) => h,
+            None => {
+                eprintln!("Skipping invalid remote (no host): {}", remote);
+                continue;
+            }
+        };
+
         let is_gh = host.contains("api.github.com");
 
         let github_token = if is_gh {

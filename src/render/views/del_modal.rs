@@ -1,4 +1,4 @@
-use crate::render::keys::normalize_char;
+use crate::render::views::helpers::nav_key;
 use crate::render::theme::Theme;
 use crate::render::views::inspect::centered_rect;
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
@@ -25,6 +25,7 @@ pub(crate) struct DelModalModel {
     pub(crate) files: Vec<PathBuf>,
     pub(crate) title: String,
     pub(crate) scroll: u16,
+    pub(crate) failed: Vec<PathBuf>,
 }
 
 impl DelModalModel {
@@ -33,6 +34,7 @@ impl DelModalModel {
             files,
             title: title.into(),
             scroll: 0,
+            failed: Vec::new(),
         }
     }
 
@@ -42,11 +44,11 @@ impl DelModalModel {
             KeyCode::Esc => Some(DelModalMsg::Cancel),
             KeyCode::Up => Some(DelModalMsg::ScrollUp),
             KeyCode::Down => Some(DelModalMsg::ScrollDown),
-            KeyCode::Char(c) => match normalize_char(c) {
-                'y' => Some(DelModalMsg::Confirm),
-                'n' => Some(DelModalMsg::Cancel),
-                'k' => Some(DelModalMsg::ScrollUp),
-                'j' => Some(DelModalMsg::ScrollDown),
+            KeyCode::Char(c) => match nav_key(c) {
+                Some('y') => Some(DelModalMsg::Confirm),
+                Some('n') => Some(DelModalMsg::Cancel),
+                Some('k') => Some(DelModalMsg::ScrollUp),
+                Some('j') => Some(DelModalMsg::ScrollDown),
                 _ => None,
             },
             _ => None,
@@ -56,10 +58,17 @@ impl DelModalModel {
     pub(crate) fn update(&mut self, msg: DelModalMsg) -> DelModalEffect {
         match msg {
             DelModalMsg::Confirm => {
+                self.failed.clear();
                 for file in &self.files {
-                    let _ = remove_file(file);
+                    if remove_file(file).is_err() {
+                        self.failed.push(file.clone());
+                    }
                 }
-                DelModalEffect::Confirmed
+                if self.failed.is_empty() {
+                    DelModalEffect::Confirmed
+                } else {
+                    DelModalEffect::None
+                }
             }
             DelModalMsg::Cancel => DelModalEffect::Cancelled,
             DelModalMsg::ScrollUp => {
@@ -72,6 +81,7 @@ impl DelModalModel {
             }
         }
     }
+
 
     pub(crate) fn view(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
         frame.render_widget(Clear, area);
@@ -120,12 +130,26 @@ impl DelModalModel {
             .scroll((self.scroll, 0));
         frame.render_widget(file_widget, chunks[1]);
 
-        let button_line = Line::from(vec![
-            Span::styled(" [y / Enter] Confirm Delete ", Style::default().bg(theme.err).fg(theme.text_invert).add_modifier(Modifier::BOLD)),
-            Span::raw("    "),
-            Span::styled(" [n / Esc] Cancel ", Style::default().bg(theme.border).fg(theme.text)),
-        ]);
-        let buttons = Paragraph::new(button_line).alignment(Alignment::Center);
-        frame.render_widget(buttons, chunks[2]);
+        if self.failed.is_empty() {
+            let button_line = Line::from(vec![
+                Span::styled(" [y / Enter] Confirm Delete ", Style::default().bg(theme.err).fg(theme.text_invert).add_modifier(Modifier::BOLD)),
+                Span::raw("    "),
+                Span::styled(" [n / Esc] Cancel ", Style::default().bg(theme.border).fg(theme.text)),
+            ]);
+            let buttons = Paragraph::new(button_line).alignment(Alignment::Center);
+            frame.render_widget(buttons, chunks[2]);
+        } else {
+            let err_line = Line::from(vec![
+                theme.badge("ERROR", theme.err, theme.text_invert),
+                Span::raw(" "),
+                Span::styled(
+                    format!("Failed to delete {} file(s). Check permissions.", self.failed.len()),
+                    Style::default().fg(theme.err),
+                ),
+            ]);
+            let err_widget = Paragraph::new(err_line).alignment(Alignment::Center);
+            frame.render_widget(err_widget, chunks[2]);
+        }
     }
+
 }

@@ -3,7 +3,7 @@ use crate::configs::find_bissue_dir;
 use crate::lock::Lock;
 use crate::models::crash::CrashFile;
 use crate::models::ticket::Ticket;
-use crate::render::keys::normalize_char;
+use crate::render::views::helpers::{nav_key, time};
 use crate::render::snippet::{load_file_snippet, SnippetRef};
 use crate::render::theme::Theme;
 use crate::render::views::wizard::{
@@ -17,7 +17,7 @@ use ratatui::widgets::*;
 use std::fs::metadata;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
-use crate::render::views::helpers::time;
+
 
 pub(crate) enum TicketWizardMsg {
     InputChanged,
@@ -118,7 +118,7 @@ impl TicketWizardModel {
     pub(crate) fn handle_key(&mut self, key: KeyEvent) -> Option<TicketWizardMsg> {
         if key.modifiers.contains(KeyModifiers::CONTROL)
             && let KeyCode::Char(c) = key.code
-            && normalize_char(c) == 's'
+            && nav_key(c) == Some('s')
         {
             return Some(TicketWizardMsg::NextStep);
         }
@@ -133,9 +133,9 @@ impl TicketWizardModel {
             match key.code {
                 KeyCode::Up => return Some(TicketWizardMsg::Up),
                 KeyCode::Down => return Some(TicketWizardMsg::Down),
-                KeyCode::Char(c) => match normalize_char(c) {
-                    'k' => return Some(TicketWizardMsg::Up),
-                    'j' => return Some(TicketWizardMsg::Down),
+                KeyCode::Char(c) => match nav_key(c) {
+                    Some('k') => return Some(TicketWizardMsg::Up),
+                    Some('j') => return Some(TicketWizardMsg::Down),
                     _ => {}
                 },
                 _ => {}
@@ -145,10 +145,10 @@ impl TicketWizardModel {
                 KeyCode::Up => return Some(TicketWizardMsg::Up),
                 KeyCode::Down => return Some(TicketWizardMsg::Down),
                 KeyCode::Char(' ') => return Some(TicketWizardMsg::ToggleSelection),
-                KeyCode::Char(c) => match normalize_char(c) {
-                    'k' => return Some(TicketWizardMsg::Up),
-                    'j' => return Some(TicketWizardMsg::Down),
-                    'a' => return Some(TicketWizardMsg::ToggleAll),
+                KeyCode::Char(c) => match nav_key(c) {
+                    Some('k') => return Some(TicketWizardMsg::Up),
+                    Some('j') => return Some(TicketWizardMsg::Down),
+                    Some('a') => return Some(TicketWizardMsg::ToggleAll),
                     _ => {}
                 },
                 _ => {}
@@ -157,10 +157,10 @@ impl TicketWizardModel {
             match key.code {
                 KeyCode::Up | KeyCode::PageUp => return Some(TicketWizardMsg::ScrollPreviewUp),
                 KeyCode::Down | KeyCode::PageDown => return Some(TicketWizardMsg::ScrollPreviewDown),
-                KeyCode::Char(c) => match normalize_char(c) {
-                    'k' => return Some(TicketWizardMsg::ScrollPreviewUp),
-                    'j' => return Some(TicketWizardMsg::ScrollPreviewDown),
-                    'y' => return Some(TicketWizardMsg::ConfirmSave),
+                KeyCode::Char(c) => match nav_key(c) {
+                    Some('k') => return Some(TicketWizardMsg::ScrollPreviewUp),
+                    Some('j') => return Some(TicketWizardMsg::ScrollPreviewDown),
+                    Some('y') => return Some(TicketWizardMsg::ConfirmSave),
                     _ => {}
                 },
                 _ => {}
@@ -205,8 +205,14 @@ impl TicketWizardModel {
             TicketWizardMsg::Up => {
                 if self.active_step == 2 {
                     self.crash_cursor = self.crash_cursor.saturating_sub(1);
+                    if self.crash_cursor < self.crash_scroll {
+                        self.crash_scroll = self.crash_cursor;
+                    }
                 } else if self.active_step == 3 {
                     self.diag_cursor = self.diag_cursor.saturating_sub(1);
+                    if self.diag_cursor < self.diag_scroll {
+                        self.diag_scroll = self.diag_cursor;
+                    }
                 }
                 WizardEffect::None
             }
@@ -223,6 +229,7 @@ impl TicketWizardModel {
                 }
                 WizardEffect::None
             }
+
             TicketWizardMsg::ToggleSelection => {
                 if self.active_step == 3 && self.diag_cursor < self.selected_diagnostics.len() {
                     self.selected_diagnostics[self.diag_cursor] = !self.selected_diagnostics[self.diag_cursor];

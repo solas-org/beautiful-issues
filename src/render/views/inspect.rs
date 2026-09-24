@@ -1,8 +1,8 @@
 use crate::lock::Lock;
 use crate::models::crash::CrashFile;
-use crate::render::keys::normalize_char;
 use crate::render::snippet::load_file_snippet;
 use crate::render::theme::Theme;
+use crate::render::views::helpers::{nav_key, split_len_layout, split_min_layout};
 use anyhow::{bail, Context, Result};
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Alignment, Spacing};
@@ -10,7 +10,7 @@ use ratatui::prelude::*;
 use ratatui::widgets::*;
 use std::fs::read;
 use std::path::{Path, PathBuf};
-use crate::render::views::helpers::{split_len_layout, split_min_layout};
+
 
 pub(crate) enum InspectMsg {
     NextDiagnostic,
@@ -71,11 +71,11 @@ impl InspectModel {
             KeyCode::Esc => Some(InspectMsg::Quit),
             KeyCode::Down => Some(InspectMsg::NextDiagnostic),
             KeyCode::Up => Some(InspectMsg::PrevDiagnostic),
-            KeyCode::Char(c) => match normalize_char(c) {
-                'j' => Some(InspectMsg::NextDiagnostic),
-                'k' => Some(InspectMsg::PrevDiagnostic),
-                't' => Some(InspectMsg::ToggleTrace),
-                'c' => Some(InspectMsg::CreateTicket),
+            KeyCode::Char(c) => match nav_key(c) {
+                Some('j') => Some(InspectMsg::NextDiagnostic),
+                Some('k') => Some(InspectMsg::PrevDiagnostic),
+                Some('t') => Some(InspectMsg::ToggleTrace),
+                Some('c') => Some(InspectMsg::CreateTicket),
                 _ => None,
             },
             _ => None,

@@ -1,4 +1,4 @@
-﻿use std::fs::Metadata;
+use std::fs::Metadata;
 use std::rc::Rc;
 use chrono::{DateTime, Utc};
 use ratatui::layout::{Constraint, Direction, Layout, Rect, Spacing};
@@ -33,3 +33,11 @@ pub(crate) fn time(meta: Option<&Metadata>) -> String{
         })
         .unwrap_or_default()
 }
+
+pub(crate) fn nav_key(c: char) -> Option<char> {
+    if c.is_ascii() {
+        Some(c.to_ascii_lowercase())
+    } else {
+        None
+    }
+}

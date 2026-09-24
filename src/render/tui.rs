@@ -3,11 +3,9 @@ use ratatui::crossterm::{
     cursor::MoveTo,
     event::{KeyboardEnhancementFlags, PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags},
     execute,
-    terminal::{
-        disable_raw_mode, enable_raw_mode, Clear, ClearType, EnterAlternateScreen,
-        LeaveAlternateScreen,
-    },
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
+
 use ratatui::prelude::*;
 use std::io::{stdout, Stdout};
 use std::panic::{set_hook, take_hook};
@@ -20,7 +18,7 @@ impl Tui {
     pub(crate) fn init() -> Result<Self> {
         enable_raw_mode()?;
         let mut out = stdout();
-        execute!(out, EnterAlternateScreen, Clear(ClearType::All), MoveTo(0, 0))?;
+        execute!(out, EnterAlternateScreen, MoveTo(0, 0))?;
         let _ = execute!(
             out,
             PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES)
@@ -34,8 +32,7 @@ impl Tui {
             panic_hook(panic_info);
         }));
 
-        let mut terminal = Terminal::new(CrosstermBackend::new(out))?;
-        terminal.clear()?;
+        let terminal = Terminal::new(CrosstermBackend::new(out))?;
         Ok(Self { terminal })
     }
 

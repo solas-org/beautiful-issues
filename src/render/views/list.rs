@@ -3,8 +3,8 @@ use crate::commands::list::paths_by_extension;
 use crate::commands::push::push;
 use crate::configs::find_bissue_dir;
 use crate::lock::Lock;
-use crate::render::keys::normalize_char;
 use crate::render::theme::Theme;
+use crate::render::views::helpers::{nav_key, time};
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Alignment, Flex, Spacing};
 use ratatui::prelude::*;
@@ -13,7 +13,7 @@ use std::fs::metadata;
 use std::path::PathBuf;
 use std::process::Command;
 use tokio::runtime::Runtime;
-use crate::render::views::helpers::time;
+
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub(crate) enum ListTab {
@@ -89,12 +89,12 @@ impl ListModel {
             KeyCode::Char('1') => Some(ListMsg::SelectTab(ListTab::Crashes)),
             KeyCode::Char('2') => Some(ListMsg::SelectTab(ListTab::Issues)),
             KeyCode::Char('3') => Some(ListMsg::SelectTab(ListTab::Tickets)),
-            KeyCode::Char(c) => match normalize_char(c) {
-                'j' => Some(ListMsg::NextItem),
-                'k' => Some(ListMsg::PrevItem),
-                'o' => Some(ListMsg::OpenFile),
-                'd' => Some(ListMsg::DeleteSelected),
-                'p' => Some(ListMsg::PushSelected),
+            KeyCode::Char(c) => match nav_key(c) {
+                Some('j') => Some(ListMsg::NextItem),
+                Some('k') => Some(ListMsg::PrevItem),
+                Some('o') => Some(ListMsg::OpenFile),
+                Some('d') => Some(ListMsg::DeleteSelected),
+                Some('p') => Some(ListMsg::PushSelected),
                 _ => None,
             },
             _ => None,

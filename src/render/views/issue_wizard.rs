@@ -1,5 +1,5 @@
 use crate::models::issue::{Issue, IssueType};
-use crate::render::keys::normalize_char;
+use crate::render::views::helpers::nav_key;
 use crate::render::theme::Theme;
 use crate::render::views::wizard::{
     render_active_text_step, render_wizard_footer, render_wizard_header, TextInput, WizardHeader,
@@ -66,7 +66,7 @@ impl IssueWizardModel {
     pub(crate) fn handle_key(&mut self, key: KeyEvent) -> Option<IssueWizardMsg> {
         if key.modifiers.contains(KeyModifiers::CONTROL)
             && let KeyCode::Char(c) = key.code
-            && normalize_char(c) == 's'
+            && nav_key(c) == Some('s')
         {
             return Some(IssueWizardMsg::NextStep);
         }
@@ -78,9 +78,9 @@ impl IssueWizardModel {
                 KeyCode::Char('1') => return Some(IssueWizardMsg::SelectType(IssueType::Error)),
                 KeyCode::Char('2') => return Some(IssueWizardMsg::SelectType(IssueType::Warning)),
                 KeyCode::Char('3') => return Some(IssueWizardMsg::SelectType(IssueType::Fatal)),
-                KeyCode::Char(c) => match normalize_char(c) {
-                    'h' => return Some(IssueWizardMsg::PrevType),
-                    'l' => return Some(IssueWizardMsg::NextType),
+                KeyCode::Char(c) => match nav_key(c) {
+                    Some('h') => return Some(IssueWizardMsg::PrevType),
+                    Some('l') => return Some(IssueWizardMsg::NextType),
                     _ => {}
                 },
                 _ => {}

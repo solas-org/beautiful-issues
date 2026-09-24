@@ -1,5 +1,5 @@
 pub(crate) mod app;
-pub(crate) mod keys;
+
 pub(crate) mod snippet;
 pub(crate) mod styling;
 pub(crate) mod theme;
