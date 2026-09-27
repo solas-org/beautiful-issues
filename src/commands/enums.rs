@@ -65,6 +65,10 @@ pub(crate) enum IssueSubcommands{
     Del{
         #[command(subcommand)]
         target: Option<DelTarget>,
+
+        ///Delete without confirmation
+        #[arg(short, long)]
+        yes: bool
     },
 }
 
@@ -88,6 +92,10 @@ pub(crate) enum CrashSubcommands{
     Del{
         #[command(subcommand)]
         target: Option<DelTarget>,
+
+        ///Delete without confirmation
+        #[arg(short, long)]
+        yes: bool
     },
 }
 
@@ -119,6 +127,10 @@ pub(crate) enum TicketSubcommand{
     Del{
         #[command(subcommand)]
         target: Option<DelTarget>,
+
+        ///Delete without confirmation
+        #[arg(short, long)]
+        yes: bool
     },
 }
 

@@ -56,13 +56,14 @@ async fn main() -> anyhow::Result<()> {
             CrashSubcommands::List => {
                 list_tui(Some(ListTab::Crashes))?;
             }
-            CrashSubcommands::Del { target } => {
+            CrashSubcommands::Del { target, yes } => {
                 let lock = Lock::load();
                 del_tui(
                     target.as_ref().unwrap_or(&DelTarget::Last),
                     &find_bissue_dir().join("crashes"),
                     "crash",
                     &lock.last_crash,
+                    yes
                 )?;
             }
         },
@@ -80,13 +81,14 @@ async fn main() -> anyhow::Result<()> {
             IssueSubcommands::List => {
                 list_tui(Some(ListTab::Issues))?;
             }
-            IssueSubcommands::Del { target } => {
+            IssueSubcommands::Del { target, yes } => {
                 let lock = Lock::load();
                 del_tui(
                     target.as_ref().unwrap_or(&DelTarget::Last),
                     &find_bissue_dir().join("issues"),
                     "issue",
                     &lock.last_issue,
+                    yes
                 )?;
             }
         },
@@ -107,13 +109,14 @@ async fn main() -> anyhow::Result<()> {
             TicketSubcommand::List => {
                 list_tui(Some(ListTab::Tickets))?;
             }
-            TicketSubcommand::Del { target } => {
+            TicketSubcommand::Del { target, yes } => {
                 let lock = Lock::load();
                 del_tui(
                     target.as_ref().unwrap_or(&DelTarget::Last),
                     &find_bissue_dir().join("tickets"),
                     "ticket",
                     &lock.last_ticket,
+                    yes
                 )?;
             }
             TicketSubcommand::Push {
