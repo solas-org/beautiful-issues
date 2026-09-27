@@ -163,6 +163,7 @@ dependencies = [
  "serde_json",
  "tokio",
  "toml",
+ "toml-comment",
  "url",
  "walkdir",
 ]
@@ -2618,6 +2619,28 @@ dependencies = [
  "toml_parser",
  "toml_writer",
  "winnow",
+]
+
+[[package]]
+name = "toml-comment"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "139fc22fcb8bd3361162e8eb0117a42d574ae9c317bebd477d67226d33d403fc"
+dependencies = [
+ "serde",
+ "toml",
+ "toml-comment-derive",
+]
+
+[[package]]
+name = "toml-comment-derive"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dbde443fd2d69a44c3c9a025924a6940608f6c02daa817b73cb962db547a2312"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
 ]
 
 [[package]]

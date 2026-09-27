@@ -116,9 +116,10 @@ pub(crate) enum TicketSubcommand{
 
         ///Dev remotes are servers that developers of issue left.
         ///User remotes you can change in config
-        #[arg(default_value = "all")]
+        #[arg(short, long("type"), default_value = "all")]
         remote_type: PushRemote,
         ///Custom remotes for push (used only if remote type is custom)
+        #[arg(short, long("custom"))]
         custom_remotes: Vec<Url>
     },
     ///Print all tickets

@@ -2,6 +2,7 @@ use std::fs::create_dir_all;
 use anyhow::{Context, Result};
 use owo_colors::OwoColorize;
 use std::path::Path;
+use toml_comment::TomlComment;
 use crate::commands::enums::Framework;
 use crate::configs::{DevConfig, UserConfig};
 use crate::lock::Lock;
@@ -15,7 +16,7 @@ pub(crate) fn init(project_path: &Path, frameworks: &[Framework]) -> Result<()> 
     create_dir_all(dir.join("crashes"))?;
     create_dir_all(dir.join("tickets"))?;
     create_dir_all(dir.join("issues"))?;
-    create_dir_all(dir.join("issues/.libs"))?;
+    create_dir_all(dir.join("issues/.pkgs"))?;
 
     let create_file_if_missing = |name: &str, content: &[u8]| -> Result<()> {
         let path = dir.join(name);
@@ -26,14 +27,12 @@ pub(crate) fn init(project_path: &Path, frameworks: &[Framework]) -> Result<()> 
         Ok(())
     };
 
-    let dev_config = DevConfig {
-        remotes: Vec::new(),
-    };
-    let dev_content = toml::to_string(&dev_config).context("Cannot serialize dev config")?;
+    let dev_config = DevConfig::default();
+    let dev_content = dev_config.to_commented_toml();
     create_file_if_missing("dev_config.toml", dev_content.as_bytes())?;
 
     let user_config = UserConfig::default();
-    let user_content = toml::to_string(&user_config).context("Cannot serialize user config")?;
+    let user_content = user_config.to_commented_toml();
     create_file_if_missing("user_config.toml", user_content.as_bytes())?;
 
     let lock = Lock {
@@ -46,8 +45,8 @@ pub(crate) fn init(project_path: &Path, frameworks: &[Framework]) -> Result<()> 
     let (ok_r, ok_g, ok_b) = parse_hex(&user_config.ok_color);
 
     println!(
-        "Beautiful issues have been {} in {} directory",
-        "successfully initialized".bold().truecolor(ok_r, ok_g, ok_b),
+        "Beautiful issues have been {} initialized in {} directory",
+        "successfully".bold().truecolor(ok_r, ok_g, ok_b),
         dir.display().italic()
     );
 

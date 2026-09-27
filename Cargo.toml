@@ -21,6 +21,7 @@ reqwest = { version = "0.13.5", features = ["json"] }
 walkdir = "2.5.0"
 tokio = { version = "1.53.1", features = ["rt", "rt-multi-thread", "macros"] }
 ratatui = "0.30.2"
+toml-comment = "0.3.0"
 
 # The profile that 'dist' will build with
 [profile.dist]

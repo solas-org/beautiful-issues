@@ -76,11 +76,6 @@ impl Default for TextInput {
 }
 
 impl TextInput {
-    #[allow(dead_code)]
-    pub(crate) fn new(value: impl Into<String>) -> Self {
-        Self::new_multiline(value)
-    }
-
     pub(crate) fn new_single_line(value: impl Into<String>) -> Self {
         let value = value.into();
         let cursor = value.chars().count();

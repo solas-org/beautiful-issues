@@ -10,6 +10,7 @@ pub(crate) struct Lock {
     pub(crate) last_issue: PathBuf,
     pub(crate) last_crash: PathBuf,
     pub(crate) last_ticket: PathBuf,
+    pub(crate) last_package: PathBuf,
     pub(crate) pushed: Vec<PathBuf>,
 }
 

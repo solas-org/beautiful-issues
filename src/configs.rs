@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
+use toml_comment::TomlComment;
 
 pub(crate) fn find_bissue_dir() -> PathBuf {
     if let Ok(mut cur) = std::env::current_dir() {
@@ -17,13 +18,22 @@ pub(crate) fn find_bissue_dir() -> PathBuf {
     PathBuf::from("./.bissue")
 }
 
-#[derive(Serialize, Deserialize, Default, Clone)]
+#[derive(Serialize, Deserialize, TomlComment, Default, Clone)]
 pub(crate) struct DevConfig {
+    ///Enable packing of your issues though hook
+    pub(crate) pack: bool,
+    ///Your packaged issues will be stored in user folder named "author-name"
+    pub(crate) name: String,
+    pub(crate) author: String,
+    ///Contacts will help user report issues to you
+    pub(crate) contacts: Vec<String>,
+    ///Remotes are alternative to contacts.
+    ///These remotes will be used to push user tickets with yours issues via POST JSON request.
+    ///Supported URL types: Custom servers, GitHub issues API.
     pub(crate) remotes: Vec<String>,
 }
 
 impl DevConfig {
-    #[allow(dead_code)]
     pub(crate) fn load() -> DevConfig {
         let path = find_bissue_dir().join("dev_config.toml");
         if let Ok(read) = std::fs::read(&path)
@@ -43,7 +53,6 @@ impl DevConfig {
         DevConfig::default()
     }
 
-    #[allow(dead_code)]
     pub(crate) fn global() -> &'static DevConfig {
         static INSTANCE: OnceLock<DevConfig> = OnceLock::new();
         INSTANCE.get_or_init(Self::load)
@@ -62,30 +71,23 @@ fn default_accent_color() -> String { "#d7b5ff".to_string() }
 fn default_select_symbol() -> String { "››".to_string() }
 fn default_choose_symbol() -> String { "✓".to_string() }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, TomlComment, Clone)]
 pub(crate) struct UserConfig {
+    ///These remotes will be used to push your tickets via POST JSON request.
+    ///Supported URL types: Custom servers, GitHub issues API.
     pub(crate) remotes: Vec<String>,
-    #[serde(default = "default_ok_color")]
+
+    ///Terminal settings:
     pub(crate) ok_color: String,
-    #[serde(default = "default_err_color")]
     pub(crate) err_color: String,
-    #[serde(default = "default_warn_color")]
     pub(crate) warn_color: String,
-    #[serde(default = "default_info_color")]
     pub(crate) info_color: String,
-    #[serde(default = "default_border_color")]
     pub(crate) border_color: String,
-    #[serde(default = "default_text_color")]
     pub(crate) text_color: String,
-    #[serde(default = "default_text_invert_color")]
     pub(crate) text_invert_color: String,
-    #[serde(default = "default_subtext_color")]
     pub(crate) subtext_color: String,
-    #[serde(default = "default_accent_color", alias = "highlight_color")]
     pub(crate) accent_color: String,
-    #[serde(default = "default_select_symbol")]
     pub(crate) select_symbol: String,
-    #[serde(default = "default_choose_symbol")]
     pub(crate) choose_symbol: String,
 }
 

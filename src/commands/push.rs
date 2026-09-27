@@ -161,15 +161,15 @@ pub(crate) async fn push(target: &PushTarget, remote_type: &PushRemote, custom_r
                         }
                         ok_cnt += 1;
                         println!(
-                            "{} to: {remote}",
-                            "Successfully pushed ticket".bold().truecolor(ok_r, ok_g, ok_b)
+                            "{} pushed ticket to: {remote}",
+                            "Successfully".bold().truecolor(ok_r, ok_g, ok_b)
                         );
                     } else {
                         let error_body = response.text().await.unwrap_or_default();
                         err_cnt += 1;
                         eprintln!(
-                            "{}: HTTP {} - {}",
-                            "Failed to push ticket".bold().truecolor(err_r, err_g, err_b),
+                            "{} to push ticket: HTTP {} - {}",
+                            "Failed".bold().truecolor(err_r, err_g, err_b),
                             status,
                             error_body
                         );
@@ -178,8 +178,8 @@ pub(crate) async fn push(target: &PushTarget, remote_type: &PushRemote, custom_r
                 Err(e) => {
                     err_cnt += 1;
                     eprintln!(
-                        "{}: Network error: {}",
-                        "Failed to push ticket".bold().truecolor(err_r, err_g, err_b),
+                        "{} to push ticket: Network error: {}",
+                        "Failed".bold().truecolor(err_r, err_g, err_b),
                         e
                     );
                 }
@@ -190,9 +190,9 @@ pub(crate) async fn push(target: &PushTarget, remote_type: &PushRemote, custom_r
     lock.write()?;
 
     println!(
-        "{divider}Pushing complete!\n{ok_cnt} {}\n{err_cnt} {}",
-        "Tickets successfully pushed".bold().truecolor(ok_r, ok_g, ok_b),
-        "Tickets failed to push".bold().truecolor(err_r, err_g, err_b),
+        "{divider}Pushing complete!\n{ok_cnt} Tickets {} pushed\n{err_cnt} Tickets {} to push",
+        "successfully".bold().truecolor(ok_r, ok_g, ok_b),
+        "failed".bold().truecolor(err_r, err_g, err_b),
     );
 
     Ok(())
