@@ -1,15 +1,17 @@
 use crate::commands::del::del_tui;
 use crate::commands::enums::{
-    Commands, CrashSubcommands, DelTarget, IssueSubcommands, PushTarget, TicketSubcommand,
+    Commands, CrashSubcommands, DelTarget, IssueSubcommands, PackageSubcommand, PushTarget,
+    TicketSubcommand,
 };
 use crate::commands::init::init;
 use crate::commands::inspect::inspect;
 use crate::commands::list::list_tui;
+use crate::commands::package::{add, check, del, generate};
 use crate::commands::push::push;
 use crate::configs::find_bissue_dir;
 use crate::lock::Lock;
 use crate::models::crash::{CrashContext, CrashFile};
-use crate::render::app::{run_tui_app, App, AppScreen};
+use crate::render::app::{App, AppScreen, run_tui_app};
 use crate::render::theme::Theme;
 use crate::render::tui::Tui;
 use crate::render::views::issue_wizard::IssueWizardModel;
@@ -17,10 +19,10 @@ use crate::render::views::list::ListTab;
 use crate::render::views::ticket_wizard::TicketWizardModel;
 use clap::Parser;
 
-mod models;
 mod commands;
 mod configs;
 mod lock;
+mod models;
 mod render;
 
 #[derive(Parser)]
@@ -63,7 +65,7 @@ async fn main() -> anyhow::Result<()> {
                     &find_bissue_dir().join("crashes"),
                     "crash",
                     &lock.last_crash,
-                    yes
+                    yes,
                 )?;
             }
         },
@@ -88,7 +90,7 @@ async fn main() -> anyhow::Result<()> {
                     &find_bissue_dir().join("issues"),
                     "issue",
                     &lock.last_issue,
-                    yes
+                    yes,
                 )?;
             }
         },
@@ -116,7 +118,7 @@ async fn main() -> anyhow::Result<()> {
                     &find_bissue_dir().join("tickets"),
                     "ticket",
                     &lock.last_ticket,
-                    yes
+                    yes,
                 )?;
             }
             TicketSubcommand::Push {
@@ -130,6 +132,24 @@ async fn main() -> anyhow::Result<()> {
                     custom_remotes,
                 )
                 .await?;
+            }
+        },
+
+        Commands::Package { subcommand } => match &subcommand {
+            PackageSubcommand::Gen { path } => {
+                generate(path.as_ref())?;
+            }
+            PackageSubcommand::Add {
+                framework,
+                name,
+                version,
+                path,
+            } => add(framework, name, version, path)?,
+            PackageSubcommand::Del { framework, name } => {
+                del(framework, name)?;
+            }
+            PackageSubcommand::Check { framework, names } => {
+                check(framework, names)?;
             }
         },
     }

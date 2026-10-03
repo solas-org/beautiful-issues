@@ -1,7 +1,9 @@
 use crate::commands::enums::Framework;
 use crate::configs::find_bissue_dir;
+use crate::models::package::Package;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 #[derive(Serialize, Deserialize, Default, Clone)]
@@ -10,8 +12,9 @@ pub(crate) struct Lock {
     pub(crate) last_issue: PathBuf,
     pub(crate) last_crash: PathBuf,
     pub(crate) last_ticket: PathBuf,
-    pub(crate) last_package: PathBuf,
     pub(crate) pushed: Vec<PathBuf>,
+    pub(crate) dependencies: HashMap<Framework, Vec<String>>,
+    pub(crate) packages: Vec<Package>,
 }
 
 impl Lock {

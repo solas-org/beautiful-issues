@@ -22,9 +22,6 @@ pub(crate) fn find_bissue_dir() -> PathBuf {
 pub(crate) struct DevConfig {
     ///Enable packing of your issues though hook
     pub(crate) pack: bool,
-    ///Your packaged issues will be stored in user folder named "author-name"
-    pub(crate) name: String,
-    pub(crate) author: String,
     ///Contacts will help user report issues to you
     pub(crate) contacts: Vec<String>,
     ///Remotes are alternative to contacts.
@@ -59,23 +56,47 @@ impl DevConfig {
     }
 }
 
-fn default_ok_color() -> String { "#a6e3a1".to_string() }
-fn default_err_color() -> String { "#f38ba8".to_string() }
-fn default_warn_color() -> String { "#f9e2af".to_string() }
-fn default_info_color() -> String { "#89a0e0".to_string() }
-fn default_border_color() -> String { "#637296".to_string() }
-fn default_text_color() -> String { "#cdd6f4".to_string() }
-fn default_text_invert_color() -> String { "#000000".to_string() }
-fn default_subtext_color() -> String { "#a6adc8".to_string() }
-fn default_accent_color() -> String { "#d7b5ff".to_string() }
-fn default_select_symbol() -> String { "››".to_string() }
-fn default_choose_symbol() -> String { "✓".to_string() }
+fn default_ok_color() -> String {
+    "#a6e3a1".to_string()
+}
+fn default_err_color() -> String {
+    "#f38ba8".to_string()
+}
+fn default_warn_color() -> String {
+    "#f9e2af".to_string()
+}
+fn default_info_color() -> String {
+    "#89a0e0".to_string()
+}
+fn default_border_color() -> String {
+    "#637296".to_string()
+}
+fn default_text_color() -> String {
+    "#cdd6f4".to_string()
+}
+fn default_text_invert_color() -> String {
+    "#000000".to_string()
+}
+fn default_subtext_color() -> String {
+    "#a6adc8".to_string()
+}
+fn default_accent_color() -> String {
+    "#d7b5ff".to_string()
+}
+fn default_select_symbol() -> String {
+    "››".to_string()
+}
+fn default_choose_symbol() -> String {
+    "✓".to_string()
+}
 
 #[derive(Serialize, Deserialize, TomlComment, Clone)]
 pub(crate) struct UserConfig {
     ///These remotes will be used to push your tickets via POST JSON request.
     ///Supported URL types: Custom servers, GitHub issues API.
     pub(crate) remotes: Vec<String>,
+    ///Automatically deletes packages that unchecked (usually by hook)
+    pub(crate) auto_prune: bool,
 
     ///Terminal settings:
     pub(crate) ok_color: String,
@@ -95,6 +116,7 @@ impl Default for UserConfig {
     fn default() -> Self {
         Self {
             remotes: Vec::new(),
+            auto_prune: true,
             ok_color: default_ok_color(),
             err_color: default_err_color(),
             warn_color: default_warn_color(),

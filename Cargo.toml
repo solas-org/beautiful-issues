@@ -22,6 +22,9 @@ walkdir = "2.5.0"
 tokio = { version = "1.53.1", features = ["rt", "rt-multi-thread", "macros"] }
 ratatui = "0.30.2"
 toml-comment = "0.3.0"
+tar = "0.4.46"
+zstd = "0.14.0"
+version-compare = "0.2.1"
 
 # The profile that 'dist' will build with
 [profile.dist]

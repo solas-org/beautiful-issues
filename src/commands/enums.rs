@@ -1,16 +1,16 @@
 use crate::models::crash::Diagnostic;
+use crate::models::issue::Issue;
+use crate::models::ticket::Ticket;
 use clap::{Subcommand, ValueEnum};
 use derive_more::Display;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use url::Url;
-use crate::models::issue::Issue;
-use crate::models::ticket::Ticket;
 
 #[derive(Subcommand)]
 pub(crate) enum Commands {
     ///Create .bissue folder in root of your project and initiate there
-    Init{
+    Init {
         ///Project root path
         #[arg(default_value_os_t = std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))]
         path: PathBuf,
@@ -25,34 +25,40 @@ pub(crate) enum Commands {
     },
 
     ///Issues are custom errors, warnings or suggestions for helping users understand the problem
-    Issue{
+    Issue {
         #[command(subcommand)]
-        subcommand: IssueSubcommands
+        subcommand: IssueSubcommands,
     },
 
     ///Crashes are auto-generated files that record program issues
-    Crash{
+    Crash {
         #[command(subcommand)]
-        subcommand: CrashSubcommands
+        subcommand: CrashSubcommands,
     },
 
     ///Tickets are user-generated reports of crashes and other problems
-    Ticket{
+    Ticket {
         #[command(subcommand)]
-        subcommand: TicketSubcommand
-    }
+        subcommand: TicketSubcommand,
+    },
+
+    ///Packages are archives with devs issues that user can include manually or via hook
+    Package {
+        #[command(subcommand)]
+        subcommand: PackageSubcommand,
+    },
 }
 
-#[derive(ValueEnum, Clone, Serialize, Deserialize, Display)]
-pub(crate) enum Framework{
+#[derive(ValueEnum, Clone, Serialize, Deserialize, Display, PartialEq, Eq, Hash)]
+pub(crate) enum Framework {
     Dotnet,
-    Rust
+    Rust,
 }
 
 #[derive(Subcommand)]
-pub(crate) enum IssueSubcommands{
+pub(crate) enum IssueSubcommands {
     ///Create new issue
-    New{
+    New {
         #[command(flatten)]
         issue: Issue,
         ///Output file path
@@ -62,20 +68,20 @@ pub(crate) enum IssueSubcommands{
     ///Print all issues
     List,
     ///Delete issues
-    Del{
+    Del {
         #[command(subcommand)]
         target: Option<DelTarget>,
 
         ///Delete without confirmation
         #[arg(short, long)]
-        yes: bool
+        yes: bool,
     },
 }
 
 #[derive(Subcommand)]
-pub(crate) enum CrashSubcommands{
+pub(crate) enum CrashSubcommands {
     ///Create new crash
-    New{
+    New {
         ///List of all issues happened in that crash (diagnostic format: CODE|FILE_PATH|SPAN|MESSAGE[|TRACE1,TRACE2,...])
         #[arg(required = true)]
         diagnostics: Vec<Diagnostic>,
@@ -89,20 +95,20 @@ pub(crate) enum CrashSubcommands{
     ///Print all crashes
     List,
     ///Delete crashes
-    Del{
+    Del {
         #[command(subcommand)]
         target: Option<DelTarget>,
 
         ///Delete without confirmation
         #[arg(short, long)]
-        yes: bool
+        yes: bool,
     },
 }
 
 #[derive(Subcommand)]
-pub(crate) enum TicketSubcommand{
+pub(crate) enum TicketSubcommand {
     ///Create new ticket
-    New{
+    New {
         #[command(flatten)]
         ticket: Ticket,
         ///Output file path
@@ -110,7 +116,7 @@ pub(crate) enum TicketSubcommand{
         output: Option<PathBuf>,
     },
     ///Push ticket to remote
-    Push{
+    Push {
         #[command(subcommand)]
         target: Option<PushTarget>,
 
@@ -120,42 +126,77 @@ pub(crate) enum TicketSubcommand{
         remote_type: PushRemote,
         ///Custom remotes for push (used only if remote type is custom)
         #[arg(short, long("custom"))]
-        custom_remotes: Vec<Url>
+        custom_remotes: Vec<Url>,
     },
     ///Print all tickets
     List,
     ///Delete tickets
-    Del{
+    Del {
         #[command(subcommand)]
         target: Option<DelTarget>,
 
         ///Delete without confirmation
         #[arg(short, long)]
-        yes: bool
+        yes: bool,
+    },
+}
+
+#[derive(Subcommand)]
+pub(crate) enum PackageSubcommand {
+    ///Generate tar archive with zstd compression, includes dev config and issues.
+    ///Output archive name is bissue.tar.zstd
+    Gen {
+        ///Custom path of generated archive output
+        path: Option<PathBuf>,
+    },
+    ///Add issues from package
+    Add {
+        ///Framework type
+        framework: Framework,
+        ///Name of package in framework
+        name: String,
+        ///Version of package in framework
+        version: String,
+        ///Path of archive
+        path: PathBuf,
+    },
+    ///Delete issues from package
+    Del {
+        ///Framework type
+        framework: Framework,
+        ///Name of package in framework
+        name: String,
+    },
+    ///Return current packages versions and prune not specified in input framework
+    Check {
+        ///Framework type
+        framework: Framework,
+        ///Names of packages in framework to check
+        names: Vec<String>,
     },
 }
 
 #[derive(Subcommand, Clone)]
-pub(crate) enum DelTarget{
+pub(crate) enum DelTarget {
     ///Delete last [default]
     Last,
     ///Delete single from specified path
     Single {
         #[arg(value_parser)]
-        path: PathBuf
+        path: PathBuf,
     },
     ///Delete all
     All,
 }
 
 #[derive(Subcommand, Clone)]
-pub(crate) enum PushTarget{
+pub(crate) enum PushTarget {
     ///Push last created ticket [default]
     Last,
     ///Push single file from specified path
     Single {
         #[arg(value_parser)]
-        path: PathBuf
+        path: PathBuf,
     },
     ///Push not pushed tickets
     Unpushed,
@@ -164,9 +205,9 @@ pub(crate) enum PushTarget{
 }
 
 #[derive(ValueEnum, Clone)]
-pub(crate) enum PushRemote{
+pub(crate) enum PushRemote {
     All,
     Dev,
     User,
-    Custom
+    Custom,
 }
