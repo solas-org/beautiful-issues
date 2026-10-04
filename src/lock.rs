@@ -3,17 +3,16 @@ use crate::configs::find_bissue_dir;
 use crate::models::package::Package;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 #[derive(Serialize, Deserialize, Default, Clone)]
 pub(crate) struct Lock {
-    pub(crate) frameworks: Vec<Framework>,
     pub(crate) last_issue: PathBuf,
     pub(crate) last_crash: PathBuf,
     pub(crate) last_ticket: PathBuf,
     pub(crate) pushed: Vec<PathBuf>,
-    pub(crate) dependencies: HashMap<Framework, Vec<String>>,
+    pub(crate) dependencies: HashMap<Framework, HashSet<String>>,
     pub(crate) packages: Vec<Package>,
 }
 
@@ -40,10 +39,5 @@ impl Lock {
             return lock;
         }
         Lock::default()
-    }
-
-    pub(crate) fn get_all_frameworks(&self) -> String {
-        let strings: Vec<String> = self.frameworks.iter().map(|f| f.to_string()).collect();
-        strings.join("|")
     }
 }

@@ -1,18 +1,16 @@
-use std::fs::create_dir_all;
-use anyhow::{Context, Result};
-use owo_colors::OwoColorize;
-use std::path::Path;
-use toml_comment::TomlComment;
-use crate::commands::enums::Framework;
 use crate::configs::{DevConfig, UserConfig};
 use crate::lock::Lock;
 use crate::render::styling::parse_hex;
+use anyhow::{Context, Result};
+use owo_colors::OwoColorize;
+use std::fs::create_dir_all;
+use std::path::Path;
+use toml_comment::TomlComment;
 
-pub(crate) fn init(project_path: &Path, frameworks: &[Framework]) -> Result<()> {
+pub(crate) fn init(project_path: &Path) -> Result<()> {
     let dir = project_path.join(".bissue");
 
-    create_dir_all(&dir)
-        .with_context(|| format!("Cannot create directory {}", dir.display()))?;
+    create_dir_all(&dir).with_context(|| format!("Cannot create directory {}", dir.display()))?;
     create_dir_all(dir.join("crashes"))?;
     create_dir_all(dir.join("tickets"))?;
     create_dir_all(dir.join("issues"))?;
@@ -35,10 +33,7 @@ pub(crate) fn init(project_path: &Path, frameworks: &[Framework]) -> Result<()> 
     let user_content = user_config.to_commented_toml();
     create_file_if_missing("user_config.toml", user_content.as_bytes())?;
 
-    let lock = Lock {
-        frameworks: frameworks.to_vec(),
-        ..Default::default()
-    };
+    let lock = Lock::default();
     let lock_content = toml::to_string(&lock).context("Cannot serialize lock file")?;
     create_file_if_missing("bissue.lock", lock_content.as_bytes())?;
 

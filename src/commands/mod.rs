@@ -3,5 +3,6 @@ pub(crate) mod enums;
 pub(crate) mod init;
 pub(crate) mod inspect;
 pub(crate) mod list;
-pub mod package;pub mod push;
+pub(crate) mod package;
+pub(crate) mod push;
 

@@ -1,14 +1,14 @@
-use crate::configs::{find_bissue_dir, UserConfig};
+use crate::commands::enums::Framework;
+use crate::configs::{UserConfig, find_bissue_dir};
 use crate::lock::Lock;
 use crate::render::styling::parse_hex;
 use anyhow::{Context, Result};
 use chrono::Utc;
+use clap::Args;
 use owo_colors::OwoColorize;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::str::FromStr;
-use clap::Args;
-use crate::commands::enums::Framework;
 
 #[derive(Serialize, Deserialize)]
 pub(crate) struct CrashFile {
@@ -38,7 +38,9 @@ impl FromStr for Diagnostic {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let parts: Vec<&str> = s.split('|').collect();
         if parts.len() < 4 {
-            return Err("Expected format: 'CODE|FILE_PATH|SPAN|MESSAGE[|TRACE1,TRACE2,...]'".to_string());
+            return Err(
+                "Expected format: 'CODE|FILE_PATH|SPAN|MESSAGE[|TRACE1,TRACE2,...]'".to_string(),
+            );
         }
 
         let error_code = parts[0].trim().to_string();
@@ -47,10 +49,7 @@ impl FromStr for Diagnostic {
         let message = parts[3].trim().to_string();
 
         let trace = if parts.len() > 4 && !parts[4].trim().is_empty() {
-            parts[4]
-                .split(',')
-                .map(|t| t.trim().to_string())
-                .collect()
+            parts[4].split(',').map(|t| t.trim().to_string()).collect()
         } else {
             Vec::new()
         };
@@ -71,7 +70,9 @@ impl CrashFile {
 
         let generated_name = Utc::now().format("%Y-%m-%d_%H-%M-%S");
         let path = output.unwrap_or_else(|| {
-            find_bissue_dir().join("crashes").join(format!("{generated_name}.crash"))
+            find_bissue_dir()
+                .join("crashes")
+                .join(format!("{generated_name}.crash"))
         });
 
         let canon = dunce::canonicalize(&path).unwrap_or(path);
@@ -81,8 +82,8 @@ impl CrashFile {
                 .with_context(|| format!("Cannot create directory {}", parent.display()))?;
         }
 
-        let file_content = serde_json::to_string_pretty(&self)
-            .context("Cannot serialize crash file")?;
+        let file_content =
+            serde_json::to_string_pretty(&self).context("Cannot serialize crash file")?;
 
         std::fs::write(&canon, file_content.as_bytes())
             .with_context(|| format!("Cannot create crash file at {}", canon.display()))?;
@@ -90,7 +91,9 @@ impl CrashFile {
         let (ok_r, ok_g, ok_b) = parse_hex(&user_config.ok_color);
         println!(
             "{} {}",
-            "Successfully created crash file at path:".truecolor(ok_r, ok_g, ok_b).bold(),
+            "Successfully created crash file at path:"
+                .truecolor(ok_r, ok_g, ok_b)
+                .bold(),
             canon.display().italic()
         );
 
@@ -137,7 +140,11 @@ impl FromStr for CrashSpan {
             None
         };
 
-        Ok(CrashSpan { line, column: col, len })
+        Ok(CrashSpan {
+            line,
+            column: col,
+            len,
+        })
     }
 }
 
@@ -152,10 +159,14 @@ impl CrashContext {
     pub(crate) fn generate(framework: Option<&Framework>) -> CrashContext {
         let target_framework = match framework {
             Some(f) => f.to_string(),
-            None => Lock::load().get_all_frameworks(),
+            None => String::new(),
         };
         let timestamp = Utc::now().timestamp();
         let os = std::env::consts::OS.to_string();
-        CrashContext { target_framework, os, timestamp }
+        CrashContext {
+            target_framework,
+            os,
+            timestamp,
+        }
     }
 }

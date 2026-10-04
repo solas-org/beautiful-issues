@@ -14,8 +14,6 @@ pub(crate) enum Commands {
         ///Project root path
         #[arg(default_value_os_t = std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))]
         path: PathBuf,
-        ///Target frameworks
-        frameworks: Vec<Framework>,
     },
 
     ///Inspect crash on specified path or the last one
@@ -146,8 +144,12 @@ pub(crate) enum PackageSubcommand {
     ///Generate tar archive with zstd compression, includes dev config and issues.
     ///Output archive name is bissue.tar.zstd
     Gen {
-        ///Custom path of generated archive output
+        ///Custom folder path of generated archive output
         path: Option<PathBuf>,
+
+        ///Package will include dependencies only with selected frameworks
+        #[arg(short, long)]
+        frameworks: Vec<Framework>,
     },
     ///Add issues from package
     Add {

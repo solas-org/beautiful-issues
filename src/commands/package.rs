@@ -12,16 +12,53 @@ use version_compare;
 use version_compare::{Cmp, compare};
 use zstd::Encoder;
 
-pub(crate) fn generate(output: Option<&PathBuf>) -> anyhow::Result<()> {
+pub(crate) fn generate(
+    output: Option<&PathBuf>,
+    frameworks: &Vec<Framework>,
+) -> anyhow::Result<()> {
     let bissue_dir = find_bissue_dir();
-    //TODO add option to include only selected framework issues
+
     let path = output.unwrap_or(&bissue_dir).join("bissue.tar.zstd");
 
     let file = fs::File::create(&path)?;
     let enc = Encoder::new(file, 3)?.auto_finish();
     let mut tar = Builder::new(enc);
 
-    tar.append_dir_all("issues", bissue_dir.join("issues"))?;
+    let issues_dir = bissue_dir.join("issues");
+    if frameworks.is_empty() {
+        tar.append_dir_all("issues", &issues_dir)?;
+    } else {
+        for entry in fs::read_dir(&issues_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if !path.is_file() {
+                continue;
+            }
+
+            if let Some(name) = path.file_name() {
+                tar.append_path_with_name(&path, format!("issues/{}", name.display()))?;
+            }
+        }
+    }
+    
+    for framework in frameworks {
+        for entry in fs::read_dir(&issues_dir.join(".pkgs"))? {
+            let entry = entry?;
+            let path = entry.path();
+            if !path.is_dir() {
+                continue;
+            }
+
+            if let Some(folder_name_os) = path.file_name() {
+                let folder_name = folder_name_os.to_string_lossy();
+
+                if folder_name.starts_with(framework.to_string().as_str()) {
+                    tar.append_dir_all(format!("issues/.pkgs/{folder_name}"), &path)?;
+                }
+            }
+        }
+    }
+
     tar.append_path_with_name(bissue_dir.join("dev_config.toml"), "dev_config.toml")?;
     tar.finish()?;
 
@@ -44,11 +81,15 @@ pub(crate) fn add(
     let mut lock = Lock::load();
     let found = get_pkg_pos(&lock, framework, name);
     if let Some(p) = found {
-        if compare(&lock.packages[p].version, version) != Ok(Cmp::Lt) {
-            println!("Package with same version have already installed");
+        if compare(&lock.packages[p].version, version) == Ok(Cmp::Ge) {
+            println!("Package with same or older version have already installed");
             return Ok(());
         }
     }
+
+    let empty = &mut HashSet::new();
+    let framework_deps = lock.dependencies.get_mut(framework).unwrap_or(empty);
+    framework_deps.retain(|x| !x.starts_with(name));
 
     let pkg_dir = find_bissue_dir().join("issues").join(".pkgs");
     let target_dir = pkg_dir.join(format!("{}@{}@{}", &framework, &name, &version));
@@ -89,12 +130,12 @@ pub(crate) fn add(
             dependencies.push(base_name.clone());
 
             if !global_dependencies.contains_key(framework) {
-                global_dependencies.insert(framework.clone(), Vec::new());
+                global_dependencies.insert(framework.clone(), HashSet::new());
             }
 
             if !global_dependencies[framework].contains(&base_name) {
                 let names = global_dependencies.get_mut(framework).unwrap();
-                names.push(format!("{base_name}@{dep_version}"));
+                names.insert(format!("{base_name}@{dep_version}"));
             } else if compare(
                 dep_version,
                 global_dependencies[framework]
@@ -171,8 +212,8 @@ pub(crate) fn del(framework: &Framework, name: &String) -> anyhow::Result<()> {
         Some(p) => {
             version = lock.packages[*p].version.clone();
 
-            let mut current_deps = Vec::new();
-            let mut other_deps = Vec::new();
+            let mut current_deps = HashSet::new();
+            let mut other_deps = HashSet::new();
             for (fr, deps) in &lock.dependencies {
                 if fr == framework {
                     current_deps = deps.clone();
@@ -185,12 +226,17 @@ pub(crate) fn del(framework: &Framework, name: &String) -> anyhow::Result<()> {
 
             unique_deps = current_deps
                 .into_iter()
-                .filter(|item| !other_set.contains(item))
+                .filter(|item| {
+                    lock.packages
+                        .iter()
+                        .all(|e| e.framework != *framework || e.name != *item)
+                        && !other_set.contains(item)
+                })
                 .collect();
 
             unique_deps.dedup();
 
-            let empty = &mut Vec::new();
+            let empty = &mut HashSet::new();
             let framework_deps = lock.dependencies.get_mut(framework).unwrap_or(empty);
 
             for dep in &unique_deps {

@@ -37,8 +37,8 @@ async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     match &cli.command {
-        Commands::Init { path, frameworks } => {
-            init(path, frameworks)?;
+        Commands::Init { path } => {
+            init(path)?;
         }
         Commands::Inspect { crash_file } => {
             inspect(crash_file.as_deref())?;
@@ -136,8 +136,8 @@ async fn main() -> anyhow::Result<()> {
         },
 
         Commands::Package { subcommand } => match &subcommand {
-            PackageSubcommand::Gen { path } => {
-                generate(path.as_ref())?;
+            PackageSubcommand::Gen { path, frameworks } => {
+                generate(path.as_ref(), frameworks)?;
             }
             PackageSubcommand::Add {
                 framework,
