@@ -51,7 +51,7 @@ async fn main() -> anyhow::Result<()> {
             } => {
                 CrashFile {
                     crashes: diagnostics.clone(),
-                    context: CrashContext::generate(framework.as_ref()),
+                    context: CrashContext::generate(framework),
                 }
                 .save(output.clone())?;
             }

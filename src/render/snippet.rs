@@ -1,8 +1,8 @@
+use crate::render::views::ticket_wizard::parse_query_path_range;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use std::fs;
 use std::path::{Path, PathBuf};
-use crate::render::views::ticket_wizard::parse_query_path_range;
 
 #[derive(Clone, Debug)]
 pub(crate) struct SnippetRef {
@@ -39,12 +39,10 @@ pub(crate) fn load_file_snippet<'a>(
     let content = match fs::read_to_string(path) {
         Ok(c) => c,
         Err(_) => {
-            return vec![Line::from(vec![
-                Span::styled(
-                    format!("Cannot read file: {}", path.display()),
-                    Style::default().fg(Color::Yellow),
-                )
-            ])];
+            return vec![Line::from(vec![Span::styled(
+                format!("Cannot read file: {}", path.display()),
+                Style::default().fg(Color::Yellow),
+            )])];
         }
     };
 
@@ -56,19 +54,14 @@ pub(crate) fn load_file_snippet<'a>(
         )])];
     }
 
-    let (start_idx, end_idx) = match (range, target_line) {
-        (Some((start, end)), _) => {
-            let s = start.saturating_sub(1).min(all_lines.len());
-            let e = end.min(all_lines.len());
-            (s, e.max(s + 1))
-        }
-        (None, Some(target)) => {
+    let (start_idx, end_idx) = match target_line {
+        Some(target) => {
             let t = target.saturating_sub(1);
             let s = t.saturating_sub(5);
             let e = (t + 6).min(all_lines.len());
             (s, e)
         }
-        (None, None) => {
+        None => {
             let e = all_lines.len().min(30);
             (0, e)
         }
@@ -82,37 +75,85 @@ pub(crate) fn load_file_snippet<'a>(
         let line_num = idx + 1;
         let is_target = target_line.map(|t| t == line_num).unwrap_or(false);
 
-        let num_span = Span::styled(
-            format!("{line_num:4} │ "),
-            if is_target {
-                Style::default().fg(highlight_color).add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(subtext_color)
-            },
-        );
-
-        let content_span = Span::styled(
-            all_lines[idx].to_string(),
-            if is_target {
-                Style::default()
-                    .fg(highlight_color)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(text_color)
-            },
-        );
-
         let marker = if is_target {
             Span::styled(
                 format!(" {select_symbol} "),
-                Style::default().fg(highlight_color).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(highlight_color)
+                    .add_modifier(Modifier::BOLD),
             )
         } else {
             let pad = " ".repeat(select_symbol.chars().count() + 2);
             Span::raw(pad)
         };
 
-        lines.push(Line::from(vec![marker, num_span, content_span]));
+        let num_span = Span::styled(
+            format!("{line_num:4} │ "),
+            if is_target {
+                Style::default()
+                    .fg(highlight_color)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(subtext_color)
+            },
+        );
+
+        let normal_content_style = Style::default().fg(text_color);
+        let highlight_content_style = Style::default()
+            .fg(highlight_color)
+            .add_modifier(Modifier::BOLD);
+
+        let mut content_spans = Vec::new();
+        let line_str = &all_lines[idx];
+
+        if is_target {
+            if let Some((start, end)) = range {
+                let char_indices: Vec<usize> =
+                    line_str.char_indices().map(|(b_idx, _)| b_idx).collect();
+                let len_chars = char_indices.len();
+
+                if start <= end && start <= len_chars && end <= len_chars {
+                    let byte_start = if start == len_chars {
+                        line_str.len()
+                    } else {
+                        char_indices[start]
+                    };
+                    let byte_end = if end == len_chars {
+                        line_str.len()
+                    } else {
+                        char_indices[end]
+                    };
+
+                    let before = &line_str[..byte_start];
+                    let highlighted = &line_str[byte_start..byte_end];
+                    let after = &line_str[byte_end..];
+
+                    if !before.is_empty() {
+                        content_spans.push(Span::styled(before.to_string(), normal_content_style));
+                    }
+                    if !highlighted.is_empty() {
+                        content_spans.push(Span::styled(
+                            highlighted.to_string(),
+                            highlight_content_style,
+                        ));
+                    }
+                    if !after.is_empty() {
+                        content_spans.push(Span::styled(after.to_string(), normal_content_style));
+                    }
+                } else {
+                    content_spans.push(Span::styled(line_str.to_string(), highlight_content_style));
+                }
+            } else {
+                content_spans.push(Span::styled(line_str.to_string(), highlight_content_style));
+            }
+        } else {
+            content_spans.push(Span::styled(line_str.to_string(), normal_content_style));
+        }
+
+        let mut all_spans = vec![marker, num_span];
+        all_spans.extend(content_spans);
+
+        lines.push(Line::from(all_spans));
     }
 
     lines

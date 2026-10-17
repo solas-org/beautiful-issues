@@ -80,12 +80,11 @@ pub(crate) enum IssueSubcommands {
 pub(crate) enum CrashSubcommands {
     ///Create new crash
     New {
-        ///List of all issues happened in that crash (diagnostic format: CODE|FILE_PATH|SPAN|MESSAGE[|TRACE1,TRACE2,...])
+        ///Target framework
+        framework: Framework,
+        ///List of all issues happened in that crash (diagnostic format: CODE|FILE_PATH|SPAN[|TRACE1,TRACE2,...])
         #[arg(required = true)]
         diagnostics: Vec<Diagnostic>,
-        ///Target framework
-        #[arg(short, long)]
-        framework: Option<Framework>,
         ///Output file path
         #[arg(short, long)]
         output: Option<PathBuf>,
